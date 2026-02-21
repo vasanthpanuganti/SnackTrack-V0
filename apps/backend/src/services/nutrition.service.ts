@@ -2,6 +2,7 @@ import type {
   DailyNutritionSummary,
   WeeklyNutritionSummary,
   NutritionSummary,
+  NutritionTargets,
 } from "@snacktrack/shared-types";
 import { prisma } from "../config/database.js";
 import { redis } from "../config/redis.js";
@@ -63,12 +64,12 @@ export class NutritionService {
       where: { userId },
     });
 
-    const targets: NutritionSummary | null = preferences
+    const targets: NutritionTargets | null = preferences
       ? {
-          calories: preferences.calorieTarget ?? 0,
-          proteinG: preferences.proteinTargetG ?? 0,
-          carbsG: preferences.carbTargetG ?? 0,
-          fatG: preferences.fatTargetG ?? 0,
+          calories: preferences.calorieTarget ?? null,
+          proteinG: preferences.proteinTargetG ?? null,
+          carbsG: preferences.carbTargetG ?? null,
+          fatG: preferences.fatTargetG ?? null,
         }
       : null;
 

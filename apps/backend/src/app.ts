@@ -6,6 +6,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { notFoundHandler } from "./middleware/notFound.js";
 import { apiRoutes } from "./routes/index.js";
 import { API_PREFIX } from "./config/constants.js";
+import { env } from "./config/env.js";
 
 export function createApp(): Express {
   const app = express();
@@ -14,7 +15,8 @@ export function createApp(): Express {
   app.use(helmet());
 
   // CORS
-  const origins = process.env.CORS_ORIGINS?.split(",") ?? ["http://localhost:3000"];
+  const parsed = env.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean);
+  const origins = parsed.length > 0 ? parsed : ["http://localhost:3000"];
   app.use(cors({ origin: origins, credentials: true }));
 
   // Body parsing

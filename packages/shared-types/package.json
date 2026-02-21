@@ -19,7 +19,9 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@snacktrack/config-eslint": "workspace:*",
     "@snacktrack/config-typescript": "workspace:*",
+    "eslint": "^9.0.0",
     "typescript": "^5.7.0"
   }
 }

@@ -28,7 +28,10 @@ export function createRecipeCacheRefreshWorker(): Worker {
       const expiringRecipes = await prisma.recipe.findMany({
         where: {
           spoonacularId: { not: null },
-          expiresAt: { lt: new Date(Date.now() + 3 * 86400 * 1000) }, // Expires within 3 days
+          expiresAt: {
+            gt: new Date(),
+            lt: new Date(Date.now() + 3 * 86400 * 1000),
+          },
         },
         take: 20,
         orderBy: { expiresAt: "asc" },

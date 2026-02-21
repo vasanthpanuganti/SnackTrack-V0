@@ -33,10 +33,10 @@ if (isDevelopment) {
   prisma.$on("query" as never, (e: { query: string; duration: number }) => {
     logger.debug({ query: e.query, duration: `${e.duration}ms` }, "Prisma query");
   });
-
-  globalForPrisma.prisma = prisma;
-  globalForPrisma.prismaPool = prismaPool;
 }
+
+globalForPrisma.prisma = prisma;
+globalForPrisma.prismaPool = prismaPool;
 
 export async function isDatabaseHealthy(): Promise<boolean> {
   try {

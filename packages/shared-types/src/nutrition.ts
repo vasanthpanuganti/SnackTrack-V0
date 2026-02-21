@@ -31,10 +31,14 @@ export interface NutritionSummary {
   sugarG?: number;
 }
 
+export type NutritionTargets = {
+  [K in keyof NutritionSummary]: NutritionSummary[K] | null;
+};
+
 export interface DailyNutritionSummary {
   date: string;
   consumed: NutritionSummary;
-  targets: NutritionSummary | null;
+  targets: NutritionTargets | null;
   mealCount: number;
   percentages: {
     calories: number | null;

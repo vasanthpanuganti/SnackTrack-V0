@@ -3,16 +3,17 @@ from typing import AsyncGenerator
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 from pgvector.psycopg import register_vector_async
 
 from .config import settings
 
-_pool: psycopg.AsyncConnectionPool | None = None
+_pool: AsyncConnectionPool | None = None
 
 
 async def init_db() -> None:
     global _pool
-    _pool = psycopg.AsyncConnectionPool(
+    _pool = AsyncConnectionPool(
         settings.DATABASE_URL,
         min_size=2,
         max_size=10,
