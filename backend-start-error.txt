@@ -1,0 +1,14 @@
+Invalid environment variables:
+{
+  NODE_ENV: [
+    "Invalid enum value. Expected 'development' | 'production' | 'test', received 'test '"
+  ],
+  SUPABASE_URL: [ 'Required' ],
+  SUPABASE_ANON_KEY: [ 'Required' ],
+  SUPABASE_SERVICE_ROLE_KEY: [ 'Required' ],
+  SUPABASE_JWT_SECRET: [ 'Required' ],
+  DATABASE_URL: [ 'Required' ],
+  DIRECT_URL: [ 'Required' ],
+  SPOONACULAR_API_KEY: [ 'Required' ],
+  USDA_API_KEY: [ 'Required' ]
+}

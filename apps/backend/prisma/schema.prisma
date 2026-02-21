@@ -1,0 +1,222 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [uuidOssp(map: "uuid-ossp"), pgvector(map: "vector")]
+}
+
+// ─── User & Profile ────────────────────────────────────────────────
+
+model User {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email          String   @unique
+  displayName    String?  @map("display_name")
+  dateOfBirth    DateTime? @map("date_of_birth") @db.Date
+  gender         String?
+  heightCm       Float?   @map("height_cm")
+  weightKg       Float?   @map("weight_kg")
+  activityLevel  String?  @map("activity_level")
+  healthGoal     String?  @map("health_goal")
+  unitPreference String   @default("metric") @map("unit_preference")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  allergens       UserAllergen[]
+  preferences     DietaryPreference?
+  mealPlans       MealPlan[]
+  mealLogs        MealLog[]
+  interactions    UserInteraction[]
+  recommendations RecommendationCache[]
+
+  @@index([createdAt])
+  @@map("users")
+}
+
+model UserAllergen {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  allergenType String   @map("allergen_type")
+  severity     String   @default("severe")
+  isCustom     Boolean  @default(false) @map("is_custom")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, allergenType])
+  @@map("user_allergens")
+}
+
+model DietaryPreference {
+  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId             String   @unique @map("user_id") @db.Uuid
+  dietType           String?  @map("diet_type")
+  cuisinePreferences String[] @map("cuisine_preferences")
+  maxPrepTimeMin     Int?     @map("max_prep_time_min")
+  cookingSkill       String?  @map("cooking_skill")
+  calorieTarget      Int?     @map("calorie_target")
+  proteinTargetG     Float?   @map("protein_target_g")
+  carbTargetG        Float?   @map("carb_target_g")
+  fatTargetG         Float?   @map("fat_target_g")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("dietary_preferences")
+}
+
+// ─── Recipes (cached from Spoonacular) ─────────────────────────────
+
+model Recipe {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  spoonacularId   Int?      @unique @map("spoonacular_id")
+  title           String
+  imageUrl        String?   @map("image_url")
+  cloudinaryUrl   String?   @map("cloudinary_url")
+  readyInMinutes  Int?      @map("ready_in_minutes")
+  servings        Int?
+  calories        Float?
+  proteinG        Float?    @map("protein_g")
+  carbsG          Float?    @map("carbs_g")
+  fatG            Float?    @map("fat_g")
+  sodiumMg        Float?    @map("sodium_mg")
+  fiberG          Float?    @map("fiber_g")
+  sugarG          Float?    @map("sugar_g")
+  ingredients     Json?
+  allergens       String[]
+  dietLabels      String[]  @map("diet_labels")
+  cuisineTypes    String[]  @map("cuisine_types")
+  instructions    Json?
+  cachedAt        DateTime  @default(now()) @map("cached_at")
+  expiresAt       DateTime? @map("expires_at")
+
+  mealPlanItems   MealPlanItem[]
+  mealLogs        MealLog[]
+  interactions    UserInteraction[]
+  recommendations RecommendationCache[]
+
+  // NOTE: ingredient_vector VECTOR(128) and nutrition_vector VECTOR(12)
+  // are added via raw SQL migration since Prisma doesn't support pgvector natively.
+
+  @@index([cachedAt])
+  @@index([expiresAt])
+  @@map("recipes")
+}
+
+// ─── Meal Plans ────────────────────────────────────────────────────
+
+model MealPlan {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  name          String?
+  startDate     DateTime @map("start_date") @db.Date
+  endDate       DateTime @map("end_date") @db.Date
+  status        String   @default("active")
+  calorieTarget Int?     @map("calorie_target")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items MealPlanItem[]
+
+  @@index([userId, status])
+  @@map("meal_plans")
+}
+
+model MealPlanItem {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  planId           String   @map("plan_id") @db.Uuid
+  recipeId         String   @map("recipe_id") @db.Uuid
+  dayNumber        Int      @map("day_number")
+  mealType         String   @map("meal_type")
+  servings         Float    @default(1)
+  isSwapped        Boolean  @default(false) @map("is_swapped")
+  originalRecipeId String?  @map("original_recipe_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  plan   MealPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  recipe Recipe   @relation(fields: [recipeId], references: [id])
+
+  @@unique([planId, dayNumber, mealType])
+  @@map("meal_plan_items")
+}
+
+// ─── Meal Logs (food diary) ────────────────────────────────────────
+
+model MealLog {
+  id       String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  recipeId String?  @map("recipe_id") @db.Uuid
+  mealType String   @map("meal_type")
+  foodName String   @map("food_name")
+  servings Float    @default(1)
+  calories Float?
+  proteinG Float?   @map("protein_g")
+  carbsG   Float?   @map("carbs_g")
+  fatG     Float?   @map("fat_g")
+  loggedAt DateTime @default(now()) @map("logged_at")
+  source   String   @default("manual")
+  synced   Boolean  @default(true)
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe Recipe? @relation(fields: [recipeId], references: [id])
+
+  @@index([userId, loggedAt])
+  @@index([userId, mealType])
+  @@map("meal_logs")
+}
+
+// ─── Recommender Data ──────────────────────────────────────────────
+
+model UserInteraction {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  recipeId        String   @map("recipe_id") @db.Uuid
+  interactionType String   @map("interaction_type")
+  interactionValue Float?  @map("interaction_value")
+  context         String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe Recipe @relation(fields: [recipeId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([recipeId])
+  @@map("user_interactions")
+}
+
+// NOTE: user_taste_profiles table uses VECTOR columns
+// and is created via raw SQL migration.
+
+model RecommendationCache {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  recipeId     String   @map("recipe_id") @db.Uuid
+  rank         Int
+  score        Float
+  contentScore Float?   @map("content_score")
+  collabScore  Float?   @map("collab_score")
+  generatedAt  DateTime @default(now()) @map("generated_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@index([userId, rank])
+  @@index([generatedAt])
+  @@map("recommendation_cache")
+}
+
+// ─── Waitlist (landing page) ───────────────────────────────────────
+
+model Waitlist {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email     String   @unique
+  name      String?
+  source    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("waitlist")
+}

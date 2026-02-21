@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: snacktrack
+      POSTGRES_PASSWORD: snacktrack_dev
+      POSTGRES_DB: snacktrack
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snacktrack"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://snacktrack:snacktrack_dev@postgres:5432/snacktrack
+      DIRECT_URL: postgresql://snacktrack:snacktrack_dev@postgres:5432/snacktrack
+      REDIS_URL: redis://redis:6379
+      SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-test-anon-key}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-test-service-role-key}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-test-jwt-secret}
+      SPOONACULAR_API_KEY: ${SPOONACULAR_API_KEY:-test-spoonacular-key}
+      USDA_API_KEY: ${USDA_API_KEY:-test-usda-key}
+      ML_SERVICE_URL: http://ml-service:8000
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ml-service:
+    build:
+      context: apps/ml-service
+      dockerfile: Dockerfile
+    environment:
+      ML_DATABASE_URL: postgresql://snacktrack:snacktrack_dev@postgres:5432/snacktrack
+      ML_HOST: "0.0.0.0"
+      ML_PORT: "8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
