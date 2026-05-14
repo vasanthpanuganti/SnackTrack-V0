@@ -12,9 +12,16 @@ vi.mock("../src/config/redis.js", () => ({
   redis: { on: vi.fn() },
 }));
 
+vi.mock("../src/services/ml.service.js", () => ({
+  mlService: {
+    isHealthy: vi.fn().mockResolvedValue(true),
+  },
+}));
+
 import { createApp } from "../src/app.js";
 import { isDatabaseHealthy } from "../src/config/database.js";
 import { isRedisHealthy } from "../src/config/redis.js";
+import { mlService } from "../src/services/ml.service.js";
 
 const app = createApp();
 
@@ -22,6 +29,7 @@ describe("Health endpoint", () => {
   it("GET /api/v1/health returns 200 when all services healthy", async () => {
     vi.mocked(isDatabaseHealthy).mockResolvedValue(true);
     vi.mocked(isRedisHealthy).mockResolvedValue(true);
+    vi.mocked(mlService.isHealthy).mockResolvedValue(true);
 
     const res = await request(app).get("/api/v1/health");
 
@@ -32,12 +40,14 @@ describe("Health endpoint", () => {
     expect(res.body.data).toHaveProperty("version");
     expect(res.body.data.services.database).toBe(true);
     expect(res.body.data.services.redis).toBe(true);
+    expect(res.body.data.services.ml).toBe(true);
     expect(res.body.error).toBeNull();
   });
 
   it("GET /api/v1/health returns 503 when database is unhealthy", async () => {
     vi.mocked(isDatabaseHealthy).mockResolvedValue(false);
     vi.mocked(isRedisHealthy).mockResolvedValue(true);
+    vi.mocked(mlService.isHealthy).mockResolvedValue(true);
 
     const res = await request(app).get("/api/v1/health");
 
@@ -51,6 +61,7 @@ describe("Health endpoint", () => {
   it("GET /api/v1/health returns 503 when redis is unhealthy", async () => {
     vi.mocked(isDatabaseHealthy).mockResolvedValue(true);
     vi.mocked(isRedisHealthy).mockResolvedValue(false);
+    vi.mocked(mlService.isHealthy).mockResolvedValue(true);
 
     const res = await request(app).get("/api/v1/health");
 
@@ -63,6 +74,7 @@ describe("Health endpoint", () => {
   it("GET /api/v1/health includes X-Request-Id header", async () => {
     vi.mocked(isDatabaseHealthy).mockResolvedValue(true);
     vi.mocked(isRedisHealthy).mockResolvedValue(true);
+    vi.mocked(mlService.isHealthy).mockResolvedValue(true);
 
     const res = await request(app).get("/api/v1/health");
 
@@ -72,6 +84,7 @@ describe("Health endpoint", () => {
   it("respects provided X-Request-Id header", async () => {
     vi.mocked(isDatabaseHealthy).mockResolvedValue(true);
     vi.mocked(isRedisHealthy).mockResolvedValue(true);
+    vi.mocked(mlService.isHealthy).mockResolvedValue(true);
 
     const customId = "test-request-123";
     const res = await request(app)
