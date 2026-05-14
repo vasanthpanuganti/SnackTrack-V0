@@ -9,8 +9,19 @@ interface MealLogResponse {
 
 interface MealLogsResponse {
   status: string;
-  data: MealLog[];
+  data: {
+    items: MealLog[];
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
   error: null;
+}
+
+interface MealLogQueryParams {
+  date?: string;
+  range?: "day" | "week" | "month";
+  cursor?: string;
+  limit?: number;
 }
 
 interface CreateMealLogInput {
@@ -26,11 +37,11 @@ interface CreateMealLogInput {
 }
 
 export const mealLogsApi = {
-  getMealLogs: async (params?: { startDate?: string; endDate?: string }) => {
+  getMealLogs: async (params?: MealLogQueryParams) => {
     const response = await apiClient.get<MealLogsResponse>("/meal-logs", {
       params,
     });
-    return response.data.data;
+    return response.data.data.items;
   },
 
   getMealLog: async (id: string) => {

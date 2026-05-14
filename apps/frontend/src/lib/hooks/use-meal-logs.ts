@@ -3,7 +3,14 @@ import { mealLogsApi } from "../api/meal-logs.api";
 import { toast } from "sonner";
 import type { MealLog } from "@/types";
 
-export function useMealLogs(params?: { startDate?: string; endDate?: string }) {
+type MealLogQueryParams = {
+  date?: string;
+  range?: "day" | "week" | "month";
+  cursor?: string;
+  limit?: number;
+};
+
+export function useMealLogs(params?: MealLogQueryParams) {
   return useQuery({
     queryKey: ["meal-logs", params],
     queryFn: () => mealLogsApi.getMealLogs(params),
