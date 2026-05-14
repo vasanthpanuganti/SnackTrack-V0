@@ -20,14 +20,13 @@ interface RecipeResponse {
 
 export const recipesApi = {
   getRecipes: async (filters?: RecipeFilters) => {
-    const response = await apiClient.get<RecipesResponse>("/recipes", {
-      params: filters,
-    });
-    return response.data.data;
-  },
-
-  getRecipe: async (id: string) => {
-    const response = await apiClient.get<RecipeResponse>(`/recipes/${id}`);
+    const { search, ...restFilters } = filters ?? {};
+    const response = await apiClient.get<RecipesResponse>(
+      search ? "/recipes/search" : "/recipes",
+      {
+        params: search ? { q: search, ...restFilters } : restFilters,
+      }
+    );
     return response.data.data;
   },
 
@@ -35,6 +34,11 @@ export const recipesApi = {
     const response = await apiClient.get<RecipesResponse>("/recipes/search", {
       params: { q: query, ...filters },
     });
+    return response.data.data;
+  },
+
+  getRecipe: async (id: string) => {
+    const response = await apiClient.get<RecipeResponse>(`/recipes/${id}`);
     return response.data.data;
   },
 
