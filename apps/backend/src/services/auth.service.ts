@@ -4,6 +4,7 @@ import { logger } from "../utils/logger.js";
 import type { SignupInput, LoginInput, RefreshInput } from "../schemas/auth.schema.js";
 import { mlService } from "./ml.service.js";
 import { captureMlFailure } from "../config/sentry.js";
+import { prisma } from "../config/database.js";
 
 interface AuthTokens {
   accessToken: string;
@@ -42,6 +43,20 @@ export class AuthService {
       throw new AppError(400, "SIGNUP_FAILED", "Failed to create account");
     }
     const userId = data.user.id;
+    const email = data.user.email!;
+
+    await prisma.user.upsert({
+      where: { id: userId },
+      create: {
+        id: userId,
+        email,
+        displayName: input.displayName,
+      },
+      update: {
+        email,
+        displayName: input.displayName,
+      },
+    });
 
     // Warm up a per-user model in the background; auth should not fail if ML training is down.
     void mlService.trainUserModel(userId).catch((error) => {
@@ -52,7 +67,7 @@ export class AuthService {
     return {
       user: {
         id: userId,
-        email: data.user.email!,
+        email,
       },
       tokens: {
         accessToken: data.session.access_token,
