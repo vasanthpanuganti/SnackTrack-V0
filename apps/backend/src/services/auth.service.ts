@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js";
+import { prisma } from "../config/database.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import type { SignupInput, LoginInput, RefreshInput } from "../schemas/auth.schema.js";
@@ -20,7 +21,41 @@ interface AuthResult {
   tokens: AuthTokens;
 }
 
+type SupabaseAuthUser = {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+};
+
 export class AuthService {
+  private async syncUserRecord(
+    authUser: SupabaseAuthUser,
+    displayName?: string,
+  ): Promise<void> {
+    if (!authUser.email) {
+      throw new AppError(400, "AUTH_USER_MISSING_EMAIL", "Authenticated user is missing an email");
+    }
+
+    const metadataDisplayName =
+      typeof authUser.user_metadata?.display_name === "string"
+        ? authUser.user_metadata.display_name
+        : undefined;
+    const resolvedDisplayName = displayName ?? metadataDisplayName;
+
+    await prisma.user.upsert({
+      where: { id: authUser.id },
+      create: {
+        id: authUser.id,
+        email: authUser.email,
+        displayName: resolvedDisplayName,
+      },
+      update: {
+        email: authUser.email,
+        ...(displayName ? { displayName } : {}),
+      },
+    });
+  }
+
   async signUp(input: SignupInput): Promise<AuthResult> {
     const { data, error } = await supabaseAdmin.auth.signUp({
       email: input.email,
@@ -42,6 +77,8 @@ export class AuthService {
       throw new AppError(400, "SIGNUP_FAILED", "Failed to create account");
     }
     const userId = data.user.id;
+
+    await this.syncUserRecord(data.user, input.displayName);
 
     // Warm up a per-user model in the background; auth should not fail if ML training is down.
     void mlService.trainUserModel(userId).catch((error) => {
@@ -78,6 +115,8 @@ export class AuthService {
       throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
     }
 
+    await this.syncUserRecord(data.user);
+
     return {
       user: {
         id: data.user.id,
@@ -113,6 +152,8 @@ export class AuthService {
     if (error || !data.user || !data.session) {
       throw new AppError(401, "REFRESH_FAILED", "Invalid or expired refresh token");
     }
+
+    await this.syncUserRecord(data.user);
 
     return {
       user: {
