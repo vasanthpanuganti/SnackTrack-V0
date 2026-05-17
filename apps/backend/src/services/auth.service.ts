@@ -1,3 +1,6 @@
+import type { Prisma } from "@prisma/client";
+import type { User } from "@snacktrack/shared-types";
+import { prisma } from "../config/database.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
@@ -13,11 +16,46 @@ interface AuthTokens {
 }
 
 interface AuthResult {
-  user: {
-    id: string;
-    email: string;
-  };
+  user: User;
   tokens: AuthTokens;
+}
+
+function mapUser(user: Prisma.UserGetPayload<object>): User {
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    dateOfBirth: user.dateOfBirth?.toISOString().split("T")[0] ?? null,
+    gender: user.gender as User["gender"],
+    heightCm: user.heightCm,
+    weightKg: user.weightKg,
+    activityLevel: user.activityLevel as User["activityLevel"],
+    healthGoal: user.healthGoal as User["healthGoal"],
+    unitPreference: user.unitPreference as User["unitPreference"],
+    createdAt: user.createdAt.toISOString(),
+    updatedAt: user.updatedAt.toISOString(),
+  };
+}
+
+async function ensureAppUser(
+  userId: string,
+  email: string,
+  displayName?: string | null,
+): Promise<User> {
+  const user = await prisma.user.upsert({
+    where: { id: userId },
+    create: {
+      id: userId,
+      email,
+      displayName: displayName ?? null,
+    },
+    update: {
+      email,
+      ...(displayName !== undefined ? { displayName } : {}),
+    },
+  });
+
+  return mapUser(user);
 }
 
 export class AuthService {
@@ -42,6 +80,22 @@ export class AuthService {
       throw new AppError(400, "SIGNUP_FAILED", "Failed to create account");
     }
     const userId = data.user.id;
+    let user: User;
+
+    try {
+      user = await ensureAppUser(userId, data.user.email!, input.displayName);
+    } catch (error) {
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+      } catch (cleanupError) {
+        logger.error(
+          { cleanupError, userId },
+          "Failed to clean up Supabase user after signup rollback",
+        );
+      }
+      logger.error({ error, userId }, "Failed to create application user during signup");
+      throw new AppError(500, "SIGNUP_FAILED", "Failed to create account");
+    }
 
     // Warm up a per-user model in the background; auth should not fail if ML training is down.
     void mlService.trainUserModel(userId).catch((error) => {
@@ -50,10 +104,7 @@ export class AuthService {
     });
 
     return {
-      user: {
-        id: userId,
-        email: data.user.email!,
-      },
+      user,
       tokens: {
         accessToken: data.session.access_token,
         refreshToken: data.session.refresh_token,
@@ -77,12 +128,10 @@ export class AuthService {
     if (!data.user || !data.session) {
       throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
     }
+    const user = await ensureAppUser(data.user.id, data.user.email!);
 
     return {
-      user: {
-        id: data.user.id,
-        email: data.user.email!,
-      },
+      user,
       tokens: {
         accessToken: data.session.access_token,
         refreshToken: data.session.refresh_token,
@@ -113,12 +162,10 @@ export class AuthService {
     if (error || !data.user || !data.session) {
       throw new AppError(401, "REFRESH_FAILED", "Invalid or expired refresh token");
     }
+    const user = await ensureAppUser(data.user.id, data.user.email!);
 
     return {
-      user: {
-        id: data.user.id,
-        email: data.user.email!,
-      },
+      user,
       tokens: {
         accessToken: data.session.access_token,
         refreshToken: data.session.refresh_token,
