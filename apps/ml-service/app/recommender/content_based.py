@@ -37,10 +37,10 @@ async def get_content_recommendations(
 
     # Build exclusion clause
     exclude_clause = ""
-    params: list = [preference_vector.tolist(), top_n * 2]
+    params: list = [preference_vector.tolist()]
     if exclude_ids:
         exclude_clause = "AND r.id != ALL(%s)"
-        params.insert(1, exclude_ids)
+        params.append(exclude_ids)
 
     # Query recipes by cosine similarity to preference vector
     query = f"""
@@ -55,9 +55,8 @@ async def get_content_recommendations(
         LIMIT %s
     """
 
-    # Re-add vector for the ORDER BY clause
-    params.append(preference_vector.tolist())
-    params.append(top_n * 2)
+    # Re-add vector for the ORDER BY clause.
+    params.extend([preference_vector.tolist(), top_n * 2])
 
     result = await conn.execute(query, tuple(params))
     rows = await result.fetchall()
@@ -102,10 +101,10 @@ async def _get_nutrition_similarity(
 ) -> list[dict]:
     """Get recipes similar by nutrition vector."""
     exclude_clause = ""
-    params: list = [preference_vector.tolist(), top_n]
+    params: list = [preference_vector.tolist()]
     if exclude_ids:
         exclude_clause = "AND r.id != ALL(%s)"
-        params.insert(1, exclude_ids)
+        params.append(exclude_ids)
 
     query = f"""
         SELECT
@@ -118,8 +117,7 @@ async def _get_nutrition_similarity(
         ORDER BY r.nutrition_vector <=> %s::vector ASC
         LIMIT %s
     """
-    params.append(preference_vector.tolist())
-    params.append(top_n)
+    params.extend([preference_vector.tolist(), top_n])
 
     result = await conn.execute(query, tuple(params))
     return await result.fetchall()
