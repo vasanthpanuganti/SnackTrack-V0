@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js";
+import { prisma } from "../config/database.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import type { SignupInput, LoginInput, RefreshInput } from "../schemas/auth.schema.js";
@@ -42,6 +43,32 @@ export class AuthService {
       throw new AppError(400, "SIGNUP_FAILED", "Failed to create account");
     }
     const userId = data.user.id;
+    const email = data.user.email!;
+
+    try {
+      await prisma.user.create({
+        data: {
+          id: userId,
+          email,
+          displayName: input.displayName,
+        },
+      });
+    } catch (error) {
+      logger.error({ error, userId }, "Failed to create application user after signup");
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+      } catch (cleanupError) {
+        logger.warn(
+          { cleanupError, userId },
+          "Failed to roll back Supabase user after signup profile creation failed",
+        );
+      }
+      throw new AppError(
+        500,
+        "SIGNUP_PROFILE_FAILED",
+        "Failed to create account profile",
+      );
+    }
 
     // Warm up a per-user model in the background; auth should not fail if ML training is down.
     void mlService.trainUserModel(userId).catch((error) => {
@@ -52,7 +79,7 @@ export class AuthService {
     return {
       user: {
         id: userId,
-        email: data.user.email!,
+        email,
       },
       tokens: {
         accessToken: data.session.access_token,
