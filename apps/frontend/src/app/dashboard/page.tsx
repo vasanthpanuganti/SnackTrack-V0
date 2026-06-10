@@ -185,7 +185,7 @@ export default function DashboardPage() {
                   >
                     <p className="font-medium">{recipe.title}</p>
                     <p className="text-sm text-muted-foreground">
-                      {recipe.calories ? `${Math.round(recipe.calories)} cal` : "N/A"} ·{" "}
+                      {recipe.calories ? `${Math.round(recipe.calories)} cal` : "N/A"} Â·{" "}
                       {recipe.readyInMinutes || "N/A"} min
                     </p>
                   </Link>
@@ -205,4 +205,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

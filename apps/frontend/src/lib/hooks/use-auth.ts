@@ -12,7 +12,7 @@ export function useAuth() {
   const loginMutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: (data) => {
-      setAuth(data.user, data.session.access_token, data.session.refresh_token);
+      setAuth(data.user, data.tokens.accessToken, data.tokens.refreshToken);
       toast.success("Welcome back!");
       router.push("/dashboard");
     },
@@ -21,7 +21,7 @@ export function useAuth() {
   const signupMutation = useMutation({
     mutationFn: authApi.signup,
     onSuccess: (data) => {
-      setAuth(data.user, data.session.access_token, data.session.refresh_token);
+      setAuth(data.user, data.tokens.accessToken, data.tokens.refreshToken);
       toast.success("Account created successfully!");
       router.push("/dashboard");
     },

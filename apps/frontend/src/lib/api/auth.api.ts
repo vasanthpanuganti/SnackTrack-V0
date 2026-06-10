@@ -16,10 +16,11 @@ interface AuthResponse {
   status: string;
   data: {
     user: User;
-    session: {
-      access_token: string;
-      refresh_token: string;
-      expires_at: number;
+    tokens: {
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+      expiresAt: number;
     };
   };
   error: null;
