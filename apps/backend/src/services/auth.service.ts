@@ -21,7 +21,33 @@ interface AuthResult {
   tokens: AuthTokens;
 }
 
+function requireEmail(email: string | null | undefined, statusCode: number, code: string): string {
+  if (!email) {
+    throw new AppError(statusCode, code, "Account has no email address");
+  }
+  return email;
+}
+
 export class AuthService {
+  private async provisionAppUser(input: {
+    id: string;
+    email: string;
+    displayName?: string | null;
+    updateDisplayName?: boolean;
+  }): Promise<void> {
+    await prisma.user.upsert({
+      where: { id: input.id },
+      create: {
+        id: input.id,
+        email: input.email,
+        displayName: input.displayName ?? null,
+      },
+      update: input.updateDisplayName
+        ? { email: input.email, displayName: input.displayName ?? null }
+        : { email: input.email },
+    });
+  }
+
   async signUp(input: SignupInput): Promise<AuthResult> {
     const { data, error } = await supabaseAdmin.auth.signUp({
       email: input.email,
@@ -43,21 +69,15 @@ export class AuthService {
       throw new AppError(400, "SIGNUP_FAILED", "Failed to create account");
     }
     const userId = data.user.id;
-    const email = data.user.email!;
+    const email = requireEmail(data.user.email, 400, "SIGNUP_FAILED");
 
     // Provision the application user row with the Supabase user id —
     // every domain table (logs, plans, preferences) hangs off this record.
-    await prisma.user.upsert({
-      where: { id: userId },
-      create: {
-        id: userId,
-        email,
-        displayName: input.displayName,
-      },
-      update: {
-        email,
-        displayName: input.displayName,
-      },
+    await this.provisionAppUser({
+      id: userId,
+      email,
+      displayName: input.displayName,
+      updateDisplayName: true,
     });
 
     // Warm up a per-user model in the background; auth should not fail if ML training is down.
@@ -94,24 +114,20 @@ export class AuthService {
     if (!data.user || !data.session) {
       throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
     }
+    const email = requireEmail(data.user.email, 401, "INVALID_CREDENTIALS");
 
     // Self-heal accounts that pre-date signup provisioning: create the app
     // user row if it's missing, but never clobber an existing profile.
-    await prisma.user.upsert({
-      where: { id: data.user.id },
-      create: {
-        id: data.user.id,
-        email: data.user.email!,
-        displayName:
-          (data.user.user_metadata?.display_name as string | undefined) ?? null,
-      },
-      update: { email: data.user.email! },
+    await this.provisionAppUser({
+      id: data.user.id,
+      email,
+      displayName: (data.user.user_metadata?.display_name as string | undefined) ?? null,
     });
 
     return {
       user: {
         id: data.user.id,
-        email: data.user.email!,
+        email,
       },
       tokens: {
         accessToken: data.session.access_token,
@@ -143,11 +159,20 @@ export class AuthService {
     if (error || !data.user || !data.session) {
       throw new AppError(401, "REFRESH_FAILED", "Invalid or expired refresh token");
     }
+    const email = requireEmail(data.user.email, 401, "REFRESH_FAILED");
+
+    // Refresh can be the only auth call a long-lived client makes, so it must
+    // repair missing application user rows just like password login does.
+    await this.provisionAppUser({
+      id: data.user.id,
+      email,
+      displayName: (data.user.user_metadata?.display_name as string | undefined) ?? null,
+    });
 
     return {
       user: {
         id: data.user.id,
-        email: data.user.email!,
+        email,
       },
       tokens: {
         accessToken: data.session.access_token,

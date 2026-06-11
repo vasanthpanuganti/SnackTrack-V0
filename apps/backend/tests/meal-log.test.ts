@@ -15,7 +15,7 @@ vi.mock("../src/config/database.js", () => ({
 
 vi.mock("../src/config/redis.js", () => ({
   isRedisHealthy: vi.fn().mockResolvedValue(true),
-  redis: { on: vi.fn() },
+  redis: { on: vi.fn(), del: vi.fn().mockResolvedValue(1) },
 }));
 
 vi.mock("../src/config/supabase.js", () => ({
@@ -34,6 +34,7 @@ vi.mock("../src/utils/logger.js", () => ({
 
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/config/database.js";
+import { redis } from "../src/config/redis.js";
 import { supabaseAdmin } from "../src/config/supabase.js";
 
 const app = createApp();
@@ -90,6 +91,7 @@ describe("Meal Log endpoints", () => {
       expect(res.body.status).toBe("success");
       expect(res.body.data.foodName).toBe("Grilled Chicken Salad");
       expect(res.body.data.mealType).toBe("lunch");
+      expect(redis.del).toHaveBeenCalledWith(`nutrition:daily:${USER_ID}:2025-06-15`);
     });
 
     it("returns 422 for missing required fields", async () => {
@@ -153,6 +155,7 @@ describe("Meal Log endpoints", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("success");
+      expect(redis.del).toHaveBeenCalledWith(`nutrition:daily:${USER_ID}:2025-06-15`);
     });
 
     it("returns 404 for non-existent log", async () => {

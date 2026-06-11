@@ -157,4 +157,45 @@ describe("AuthService", () => {
       expect(prisma.user.upsert).not.toHaveBeenCalled();
     });
   });
+
+  describe("refreshSession", () => {
+    it("self-heals a missing app user row during token refresh", async () => {
+      vi.mocked(supabaseAdmin.auth.refreshSession).mockResolvedValue({
+        data: {
+          user: {
+            id: USER_ID,
+            email: "refresh@snacktrack.dev",
+            user_metadata: { display_name: "Refresh User" },
+          },
+          session: {
+            access_token: "new-access-token",
+            refresh_token: "new-refresh-token",
+            expires_in: 3600,
+            expires_at: 1_735_689_600,
+          },
+        },
+        error: null,
+      } as never);
+      vi.mocked(prisma.user.upsert).mockResolvedValue({} as never);
+
+      const result = await authService.refreshSession({
+        refreshToken: "old-refresh-token",
+      });
+
+      expect(prisma.user.upsert).toHaveBeenCalledWith({
+        where: { id: USER_ID },
+        create: {
+          id: USER_ID,
+          email: "refresh@snacktrack.dev",
+          displayName: "Refresh User",
+        },
+        update: { email: "refresh@snacktrack.dev" },
+      });
+      expect(result.user).toEqual({
+        id: USER_ID,
+        email: "refresh@snacktrack.dev",
+      });
+      expect(result.tokens.accessToken).toBe("new-access-token");
+    });
+  });
 });
