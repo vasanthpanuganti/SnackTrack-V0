@@ -32,6 +32,11 @@ All four are **required** in development/production (auto-defaulted in test mode
 | `SUPABASE_SERVICE_ROLE_KEY`| Supabase Dashboard → Project Settings → API → `service_role` key |
 | `SUPABASE_JWT_SECRET`      | Supabase Dashboard → Project Settings → API → JWT Secret |
 
+> **No email-confirmation setup needed.** Signup creates an already-confirmed
+> user via the admin API and signs them in immediately, so the app works
+> whether or not your Supabase project has **Confirm email** enabled. Accounts
+> left unconfirmed by an earlier attempt are auto-confirmed on their next login.
+
 ### Database (Prisma)
 
 Both are **required** in development/production.
