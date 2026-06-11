@@ -17,13 +17,21 @@ function percentage(consumed: number, target: number | null | undefined): number
   return Math.round((consumed / target) * 100);
 }
 
+function dailyCacheKey(userId: string, date: string): string {
+  return `nutrition:daily:${userId}:${date}`;
+}
+
+function dateKey(date: Date): string {
+  return date.toISOString().split("T")[0]!;
+}
+
 export class NutritionService {
   async getDailySummary(
     userId: string,
     date: string,
   ): Promise<DailyNutritionSummary> {
     // Check Redis cache (populated by nutrition-precompute job)
-    const cacheKey = `nutrition:daily:${userId}:${date}`;
+    const cacheKey = dailyCacheKey(userId, date);
     try {
       const cached = await redis.get(cacheKey);
       if (cached) return JSON.parse(cached) as DailyNutritionSummary;
@@ -94,6 +102,14 @@ export class NutritionService {
     }
 
     return summary;
+  }
+
+  async invalidateDailySummary(userId: string, loggedAt: Date): Promise<void> {
+    try {
+      await redis.del(dailyCacheKey(userId, dateKey(loggedAt)));
+    } catch {
+      // Cache invalidation is best-effort; the database write already succeeded.
+    }
   }
 
   async getWeeklySummary(

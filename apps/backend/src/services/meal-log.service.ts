@@ -1,6 +1,7 @@
 import type { MealLog } from "@snacktrack/shared-types";
 import { prisma } from "../config/database.js";
 import { AppError } from "../utils/AppError.js";
+import { nutritionService } from "./nutrition.service.js";
 
 type CreateMealLogInput = {
   recipeId?: string | null;
@@ -97,6 +98,8 @@ export class MealLogService {
       },
     });
 
+    await nutritionService.invalidateDailySummary(userId, log.loggedAt);
+
     return mapMealLog(log);
   }
 
@@ -139,6 +142,7 @@ export class MealLogService {
     }
 
     await prisma.mealLog.delete({ where: { id: logId } });
+    await nutritionService.invalidateDailySummary(userId, log.loggedAt);
   }
 }
 

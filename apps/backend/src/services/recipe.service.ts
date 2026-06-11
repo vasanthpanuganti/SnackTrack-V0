@@ -103,6 +103,69 @@ function mapPrismaToRecipe(r: {
   };
 }
 
+const ALLERGEN_QUERY_ALIASES: Record<string, string[]> = {
+  dairy: ["dairy", "milk"],
+  egg: ["egg", "eggs"],
+  eggs: ["eggs", "egg"],
+  fish: ["fish", "seafood"],
+  milk: ["milk", "dairy"],
+  peanut: ["peanut", "peanuts"],
+  peanuts: ["peanuts", "peanut"],
+  seafood: ["seafood", "fish"],
+  sesame: ["sesame"],
+  shellfish: ["shellfish"],
+  soy: ["soy", "soybeans"],
+  soybeans: ["soybeans", "soy"],
+  "tree nut": ["tree nut", "tree nuts", "tree_nut", "tree_nuts"],
+  "tree nuts": ["tree nuts", "tree nut", "tree_nuts", "tree_nut"],
+  wheat: ["wheat", "gluten"],
+};
+
+const SPOONACULAR_INTOLERANCES: Record<string, string> = {
+  dairy: "dairy",
+  egg: "egg",
+  eggs: "egg",
+  gluten: "gluten",
+  milk: "dairy",
+  peanut: "peanut",
+  peanuts: "peanut",
+  seafood: "seafood",
+  sesame: "sesame",
+  shellfish: "shellfish",
+  soy: "soy",
+  soybeans: "soy",
+  sulfite: "sulfite",
+  "tree nut": "tree nut",
+  "tree nuts": "tree nut",
+  tree_nut: "tree nut",
+  tree_nuts: "tree nut",
+  wheat: "wheat",
+};
+
+function expandAllergenQueryTerms(allergens: string[]): string[] {
+  return [
+    ...new Set(
+      allergens.flatMap((allergen) => {
+        const normalized = allergen.toLowerCase().replaceAll("_", " ");
+        return ALLERGEN_QUERY_ALIASES[normalized] ?? [normalized];
+      }),
+    ),
+  ];
+}
+
+function spoonacularIntolerances(allergens: string[]): string | undefined {
+  const values = [
+    ...new Set(
+      allergens
+        .map((allergen) =>
+          SPOONACULAR_INTOLERANCES[allergen.toLowerCase().replaceAll("_", " ")]
+        )
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ];
+  return values.length > 0 ? values.join(",") : undefined;
+}
+
 export class RecipeService {
   async getRecommendationsForUser(
     userId: string,
@@ -220,7 +283,7 @@ export class RecipeService {
     if (userId) {
       const userAllergens = await allergenService.getUserAllergens(userId);
       if (userAllergens.length > 0) {
-        where.NOT = { allergens: { hasSome: userAllergens } };
+        where.NOT = { allergens: { hasSome: expandAllergenQueryTerms(userAllergens) } };
       }
     }
 
@@ -242,8 +305,11 @@ export class RecipeService {
     limit: number,
     userId?: string,
   ): Promise<Recipe[]> {
+    const userAllergens = userId ? await allergenService.getUserAllergens(userId) : [];
+    const intolerances = spoonacularIntolerances(userAllergens);
+
     // Check Redis cache
-    const cacheKey = `food:search:${Buffer.from(`${query}:${limit}`).toString("base64url")}`;
+    const cacheKey = `food:search:${Buffer.from(`${query}:${limit}:${intolerances ?? ""}`).toString("base64url")}`;
     try {
       const cached = await redis.get(cacheKey);
       if (cached) {
@@ -259,7 +325,10 @@ export class RecipeService {
     }
 
     // Fetch from Spoonacular
-    const results = await spoonacularService.searchRecipes(query, { number: limit });
+    const results = await spoonacularService.searchRecipes(query, {
+      number: limit,
+      intolerances,
+    });
 
     // Hydrate details and cache in PostgreSQL concurrently; one slow or
     // failing recipe must not serialize or sink the whole search.
