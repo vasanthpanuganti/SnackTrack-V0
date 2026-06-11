@@ -29,12 +29,22 @@ RUN pnpm --filter @snacktrack/backend build
 FROM base AS runner
 WORKDIR /app
 
+ENV NODE_ENV=production
+
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared-types ./packages/shared-types
 COPY --from=builder /app/apps/backend ./apps/backend
 
 WORKDIR /app/apps/backend
 
+# Run as the unprivileged user that ships with the node image
+USER node
+
 EXPOSE 3001
+
+# Orchestrators (Docker/K8s/ECS) restart the container if this starts failing.
+# Uses node's built-in fetch — curl is not present in slim images.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://localhost:' + (process.env.PORT || 3001) + '/api/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

@@ -165,6 +165,74 @@ export class RecipeService {
     };
   }
 
+  /**
+   * Browse/search the recipe catalog with offset pagination.
+   *
+   * With a search term we try Spoonacular first (results are cached into
+   * Postgres), and degrade gracefully to a local title search when the
+   * external API is unavailable or over quota. Without a search term this
+   * is a pure local catalog query.
+   */
+  async listRecipes(
+    options: {
+      search?: string;
+      diet?: string;
+      maxReadyTime?: number;
+      page: number;
+      limit: number;
+    },
+    userId?: string,
+  ): Promise<{ recipes: Recipe[]; total: number; page: number; limit: number }> {
+    const { search, diet, maxReadyTime, page, limit } = options;
+
+    if (search) {
+      try {
+        const found = await this.searchRecipes(search, Math.min(limit * 2, 24), userId);
+        const start = (page - 1) * limit;
+        return {
+          recipes: found.slice(start, start + limit),
+          total: found.length,
+          page,
+          limit,
+        };
+      } catch (error) {
+        logger.warn(
+          { error, search },
+          "External recipe search unavailable, falling back to local catalog",
+        );
+      }
+    }
+
+    const where: Prisma.RecipeWhereInput = {};
+    if (search) {
+      where.title = { contains: search, mode: "insensitive" };
+    }
+    if (diet) {
+      where.dietLabels = { has: diet };
+    }
+    if (maxReadyTime) {
+      where.readyInMinutes = { lte: maxReadyTime };
+    }
+
+    const [rows, total] = await prisma.$transaction([
+      prisma.recipe.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { cachedAt: "desc" },
+      }),
+      prisma.recipe.count({ where }),
+    ]);
+
+    let recipes = rows.map(mapPrismaToRecipe);
+    if (userId && recipes.length > 0) {
+      const { safe } = await allergenService.filterSafeRecipes(recipes, userId);
+      recipes = safe;
+    }
+
+    return { recipes, total, page, limit };
+  }
+
   async searchRecipes(
     query: string,
     limit: number,
@@ -189,10 +257,10 @@ export class RecipeService {
     // Fetch from Spoonacular
     const results = await spoonacularService.searchRecipes(query, { number: limit });
 
-    // Cache each recipe in PostgreSQL
-    const recipes: Recipe[] = [];
-    for (const result of results) {
-      try {
+    // Hydrate details and cache in PostgreSQL concurrently; one slow or
+    // failing recipe must not serialize or sink the whole search.
+    const settled = await Promise.allSettled(
+      results.map(async (result) => {
         const detail = await spoonacularService.getRecipeDetails(result.id);
         const recipeData = mapSpoonacularToRecipeData(detail);
         const dbRecipe = await prisma.recipe.upsert({
@@ -200,12 +268,21 @@ export class RecipeService {
           create: recipeData,
           update: { ...recipeData, cachedAt: new Date() },
         });
-        recipes.push(mapPrismaToRecipe(dbRecipe));
-      } catch (error) {
-        logger.warn({ error, recipeId: result.id }, "Failed to cache recipe");
-        // Still include basic info from search result
+        return mapPrismaToRecipe(dbRecipe);
+      }),
+    );
+
+    const recipes: Recipe[] = [];
+    settled.forEach((outcome, i) => {
+      if (outcome.status === "fulfilled") {
+        recipes.push(outcome.value);
+      } else {
+        logger.warn(
+          { error: outcome.reason, recipeId: results[i]?.id },
+          "Failed to cache recipe",
+        );
       }
-    }
+    });
 
     // Cache search results in Redis
     try {

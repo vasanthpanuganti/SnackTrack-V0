@@ -9,7 +9,7 @@ export async function requireAuth(
 ): Promise<void> {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
-    throw new AppError(401, "UNAUTHORIZED", "Missing or malformed authorization header");
+    return next(new AppError(401, "UNAUTHORIZED", "Missing or malformed authorization header"));
   }
 
   const token = header.slice(7);
@@ -20,7 +20,7 @@ export async function requireAuth(
   } = await supabaseAdmin.auth.getUser(token);
 
   if (error || !user) {
-    throw new AppError(401, "UNAUTHORIZED", "Invalid or expired token");
+    return next(new AppError(401, "UNAUTHORIZED", "Invalid or expired token"));
   }
 
   req.user = {

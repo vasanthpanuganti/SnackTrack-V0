@@ -1,53 +1,58 @@
 import { apiClient } from "./client";
-import type { MealPlan } from "@/types";
+import type { ApiResponse, MealPlan, MealPlanItem, MealType } from "@/types";
 
-interface MealPlanResponse {
-  status: string;
-  data: MealPlan;
-  error: null;
+export interface GenerateMealPlanInput {
+  type: "daily" | "weekly";
+  /** YYYY-MM-DD start date; defaults to today on the backend. */
+  date?: string;
 }
 
-interface MealPlansResponse {
-  status: string;
-  data: MealPlan[];
-  error: null;
+export interface SwapMealInput {
+  mealSlot: { dayNumber: number; mealType: MealType };
+  rejectedRecipeId: string;
 }
 
-interface CreateMealPlanInput {
+export interface UpdateMealPlanInput {
   name?: string;
-  startDate: string;
-  endDate: string;
-  calorieTarget?: number;
-  generateAuto?: boolean;
+  status?: "active" | "archived" | "draft";
 }
 
-interface SwapMealInput {
-  itemId: string;
-  newRecipeId: string;
+export interface MealPlanListResult {
+  items: MealPlan[];
+  nextCursor: string | null;
+  hasMore: boolean;
 }
 
 export const mealPlansApi = {
-  getMealPlans: async () => {
-    const response = await apiClient.get<MealPlansResponse>("/meal-plans");
-    return response.data.data;
+  getMealPlans: async (params?: { cursor?: string; limit?: number }) => {
+    const response = await apiClient.get<ApiResponse<MealPlanListResult>>(
+      "/meal-plans",
+      { params }
+    );
+    return response.data.data!;
   },
 
   getMealPlan: async (id: string) => {
-    const response = await apiClient.get<MealPlanResponse>(`/meal-plans/${id}`);
-    return response.data.data;
+    const response = await apiClient.get<ApiResponse<MealPlan>>(
+      `/meal-plans/${id}`
+    );
+    return response.data.data!;
   },
 
-  createMealPlan: async (data: CreateMealPlanInput) => {
-    const response = await apiClient.post<MealPlanResponse>("/meal-plans", data);
-    return response.data.data;
+  generateMealPlan: async (data: GenerateMealPlanInput) => {
+    const response = await apiClient.post<ApiResponse<MealPlan>>(
+      "/meal-plans/generate",
+      data
+    );
+    return response.data.data!;
   },
 
-  updateMealPlan: async (id: string, data: Partial<MealPlan>) => {
-    const response = await apiClient.put<MealPlanResponse>(
+  updateMealPlan: async (id: string, data: UpdateMealPlanInput) => {
+    const response = await apiClient.patch<ApiResponse<MealPlan>>(
       `/meal-plans/${id}`,
       data
     );
-    return response.data.data;
+    return response.data.data!;
   },
 
   deleteMealPlan: async (id: string) => {
@@ -55,10 +60,10 @@ export const mealPlansApi = {
   },
 
   swapMeal: async (planId: string, data: SwapMealInput) => {
-    const response = await apiClient.post<MealPlanResponse>(
+    const response = await apiClient.post<ApiResponse<MealPlanItem>>(
       `/meal-plans/${planId}/swap`,
       data
     );
-    return response.data.data;
+    return response.data.data!;
   },
 };

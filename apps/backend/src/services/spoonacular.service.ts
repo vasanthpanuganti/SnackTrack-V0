@@ -90,7 +90,10 @@ export class SpoonacularService {
       url.searchParams.set(key, value);
     }
 
-    const response = await fetch(url.toString());
+    // Bounded timeout so a hanging upstream can never exhaust our request pool.
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(8000),
+    });
 
     if (!response.ok) {
       if (response.status === 402) {

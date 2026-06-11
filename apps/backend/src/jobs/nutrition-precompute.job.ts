@@ -5,6 +5,7 @@ import { redis } from "../config/redis.js";
 import { logger } from "../utils/logger.js";
 import { nutritionService } from "../services/nutrition.service.js";
 import { CACHE_TTL } from "../config/constants.js";
+import { mapWithConcurrency } from "../utils/concurrency.js";
 
 const QUEUE_NAME = "nutrition-precompute";
 
@@ -40,17 +41,25 @@ export function createNutritionPrecomputeWorker(): Worker {
         distinct: ["userId"],
       });
 
+      // Bounded parallelism: much faster than a serial loop without
+      // overwhelming the database connection pool.
+      const outcomes = await mapWithConcurrency(activeUsers, 5, async ({ userId }) => {
+        const summary = await nutritionService.getDailySummary(userId, today);
+        const cacheKey = `nutrition:daily:${userId}:${today}`;
+        await redis.setex(cacheKey, CACHE_TTL.NUTRITION, JSON.stringify(summary));
+      });
+
       let cached = 0;
-      for (const { userId } of activeUsers) {
-        try {
-          const summary = await nutritionService.getDailySummary(userId, today);
-          const cacheKey = `nutrition:daily:${userId}:${today}`;
-          await redis.setex(cacheKey, CACHE_TTL.NUTRITION, JSON.stringify(summary));
+      outcomes.forEach((outcome, i) => {
+        if (outcome.status === "fulfilled") {
           cached++;
-        } catch (error) {
-          logger.warn({ error, userId }, "Failed to precompute nutrition for user");
+        } else {
+          logger.warn(
+            { error: outcome.reason, userId: activeUsers[i]?.userId },
+            "Failed to precompute nutrition for user",
+          );
         }
-      }
+      });
 
       logger.info({ cached, totalUsers: activeUsers.length }, "Nutrition precompute complete");
       return { cached, totalUsers: activeUsers.length };

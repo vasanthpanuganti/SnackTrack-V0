@@ -19,16 +19,26 @@ interface HealthData {
 }
 
 router.get("/", async (_req, res) => {
-  const [dbHealthy, redisHealthy, mlHealthy] = await Promise.all([
+  // allSettled + per-check fallback: the health endpoint must always answer,
+  // even when a dependency check itself throws.
+  const [db, redisCheck, ml] = await Promise.allSettled([
     isDatabaseHealthy(),
     isRedisHealthy(),
     mlService.isHealthy(),
   ]);
 
-  const allHealthy = dbHealthy && redisHealthy && mlHealthy;
+  const dbHealthy = db.status === "fulfilled" && db.value;
+  const redisHealthy = redisCheck.status === "fulfilled" && redisCheck.value;
+  const mlHealthy = ml.status === "fulfilled" && ml.value;
+
+  // Database and Redis are hard dependencies: without them the API cannot
+  // serve traffic and the orchestrator should recycle the instance.
+  // ML is reported for observability but is non-fatal — recommendation
+  // endpoints degrade gracefully to the general catalog when ML is down.
+  const coreHealthy = dbHealthy && redisHealthy;
 
   const response: ApiResponse<HealthData> = {
-    status: allHealthy ? "success" : "error",
+    status: coreHealthy ? "success" : "error",
     data: {
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
@@ -40,7 +50,7 @@ router.get("/", async (_req, res) => {
         ml: mlHealthy,
       },
     },
-    error: allHealthy
+    error: coreHealthy
       ? null
       : {
           code: "SERVICE_DEGRADED",
@@ -53,7 +63,7 @@ router.get("/", async (_req, res) => {
         },
   };
 
-  res.status(allHealthy ? 200 : 503).json(response);
+  res.status(coreHealthy ? 200 : 503).json(response);
 });
 
 export { router as healthRoutes };

@@ -102,6 +102,9 @@ model Recipe {
 
   @@index([cachedAt])
   @@index([expiresAt])
+  // GIN index speeds up dietLabels "has" filters used by catalog browsing
+  // and meal-plan generation.
+  @@index([dietLabels], type: Gin)
   @@map("recipes")
 }
 
@@ -122,6 +125,8 @@ model MealPlan {
   items MealPlanItem[]
 
   @@index([userId, status])
+  // Covers the plan list query (filter by user, newest first)
+  @@index([userId, createdAt])
   @@map("meal_plans")
 }
 

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js";
+import { prisma } from "../config/database.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import type { SignupInput, LoginInput, RefreshInput } from "../schemas/auth.schema.js";
@@ -42,6 +43,22 @@ export class AuthService {
       throw new AppError(400, "SIGNUP_FAILED", "Failed to create account");
     }
     const userId = data.user.id;
+    const email = data.user.email!;
+
+    // Provision the application user row with the Supabase user id —
+    // every domain table (logs, plans, preferences) hangs off this record.
+    await prisma.user.upsert({
+      where: { id: userId },
+      create: {
+        id: userId,
+        email,
+        displayName: input.displayName,
+      },
+      update: {
+        email,
+        displayName: input.displayName,
+      },
+    });
 
     // Warm up a per-user model in the background; auth should not fail if ML training is down.
     void mlService.trainUserModel(userId).catch((error) => {
@@ -52,7 +69,7 @@ export class AuthService {
     return {
       user: {
         id: userId,
-        email: data.user.email!,
+        email,
       },
       tokens: {
         accessToken: data.session.access_token,
@@ -77,6 +94,19 @@ export class AuthService {
     if (!data.user || !data.session) {
       throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
     }
+
+    // Self-heal accounts that pre-date signup provisioning: create the app
+    // user row if it's missing, but never clobber an existing profile.
+    await prisma.user.upsert({
+      where: { id: data.user.id },
+      create: {
+        id: data.user.id,
+        email: data.user.email!,
+        displayName:
+          (data.user.user_metadata?.display_name as string | undefined) ?? null,
+      },
+      update: { email: data.user.email! },
+    });
 
     return {
       user: {

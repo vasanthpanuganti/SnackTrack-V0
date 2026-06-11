@@ -1,15 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { User } from "@/types";
+import type { AuthUser } from "@/types";
 
 interface AuthState {
-  user: User | null;
+  user: AuthUser | null;
   accessToken: string | null;
   refreshToken: string | null;
   isHydrated: boolean;
-  setAuth: (user: User, accessToken: string, refreshToken: string) => void;
+  setAuth: (user: AuthUser, accessToken: string, refreshToken: string) => void;
   clearAuth: () => void;
-  updateUser: (user: Partial<User>) => void;
+  updateUser: (user: Partial<AuthUser>) => void;
   setHydrated: (isHydrated: boolean) => void;
 }
 

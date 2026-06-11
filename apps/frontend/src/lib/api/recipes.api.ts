@@ -1,50 +1,36 @@
 import { apiClient } from "./client";
-import type { Recipe, RecipeFilters } from "@/types";
+import type { ApiResponse, Recipe, RecipeFilters } from "@/types";
 
-interface RecipesResponse {
-  status: string;
-  data: {
-    recipes: Recipe[];
-    total: number;
-    page: number;
-    limit: number;
-  };
-  error: null;
+export interface RecipeListResult {
+  recipes: Recipe[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
-interface RecipeResponse {
-  status: string;
-  data: Recipe;
-  error: null;
+export interface RecommendationsResult extends RecipeListResult {
+  recommendationMode: "personalized" | "general";
 }
 
 export const recipesApi = {
   getRecipes: async (filters?: RecipeFilters) => {
-    const response = await apiClient.get<RecipesResponse>("/recipes", {
-      params: filters,
-    });
-    return response.data.data;
+    const response = await apiClient.get<ApiResponse<RecipeListResult>>(
+      "/recipes",
+      { params: filters }
+    );
+    return response.data.data!;
   },
 
   getRecipe: async (id: string) => {
-    const response = await apiClient.get<RecipeResponse>(`/recipes/${id}`);
-    return response.data.data;
-  },
-
-  searchRecipes: async (query: string, filters?: RecipeFilters) => {
-    const response = await apiClient.get<RecipesResponse>("/recipes/search", {
-      params: { q: query, ...filters },
-    });
-    return response.data.data;
+    const response = await apiClient.get<ApiResponse<Recipe>>(`/recipes/${id}`);
+    return response.data.data!;
   },
 
   getRecommendations: async (limit = 10) => {
-    const response = await apiClient.get<RecipesResponse>(
+    const response = await apiClient.get<ApiResponse<RecommendationsResult>>(
       "/recipes/recommendations",
-      {
-        params: { limit },
-      }
+      { params: { limit } }
     );
-    return response.data.data;
+    return response.data.data!;
   },
 };

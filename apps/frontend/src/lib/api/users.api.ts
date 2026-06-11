@@ -1,66 +1,71 @@
 import { apiClient } from "./client";
-import type { User, DietaryPreference, UserAllergen } from "@/types";
+import type {
+  ApiResponse,
+  User,
+  UserProfile,
+  DietaryPreference,
+  UserAllergen,
+  AllergenSeverity,
+} from "@/types";
 
-interface UserResponse {
-  status: string;
-  data: User;
-  error: null;
+export interface UpdateProfileInput {
+  displayName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  heightCm?: number;
+  weightKg?: number;
+  activityLevel?: string;
+  healthGoal?: string;
+  unitPreference?: string;
 }
 
-interface PreferenceResponse {
-  status: string;
-  data: DietaryPreference;
-  error: null;
+export interface UpdatePreferencesInput {
+  dietType?: string | null;
+  cuisinePreferences?: string[];
+  maxPrepTimeMin?: number | null;
+  cookingSkill?: string | null;
+  calorieTarget?: number | null;
+  proteinTargetG?: number | null;
+  carbTargetG?: number | null;
+  fatTargetG?: number | null;
 }
 
-interface AllergensResponse {
-  status: string;
-  data: UserAllergen[];
-  error: null;
+export interface AllergenInput {
+  allergenType: string;
+  severity?: AllergenSeverity;
+  isCustom?: boolean;
 }
 
 export const usersApi = {
+  /** Full profile including preferences and allergens. */
   getProfile: async () => {
-    const response = await apiClient.get<UserResponse>("/users/me");
-    return response.data.data;
+    const response = await apiClient.get<ApiResponse<UserProfile>>("/users/me");
+    return response.data.data!;
   },
 
-  updateProfile: async (data: Partial<User>) => {
-    const response = await apiClient.put<UserResponse>("/users/me", data);
-    return response.data.data;
+  updateProfile: async (data: UpdateProfileInput) => {
+    const response = await apiClient.patch<ApiResponse<User>>("/users/me", data);
+    return response.data.data!;
   },
 
-  getPreferences: async () => {
-    const response = await apiClient.get<PreferenceResponse>(
-      "/users/me/preferences"
-    );
-    return response.data.data;
-  },
-
-  updatePreferences: async (data: Partial<DietaryPreference>) => {
-    const response = await apiClient.put<PreferenceResponse>(
+  updatePreferences: async (data: UpdatePreferencesInput) => {
+    const response = await apiClient.put<ApiResponse<DietaryPreference>>(
       "/users/me/preferences",
       data
     );
-    return response.data.data;
+    return response.data.data!;
   },
 
-  getAllergens: async () => {
-    const response = await apiClient.get<AllergensResponse>(
-      "/users/me/allergens"
-    );
-    return response.data.data;
-  },
-
-  addAllergen: async (data: { allergenType: string; severity: string }) => {
-    const response = await apiClient.post<{ status: string; data: UserAllergen }>(
+  /** Replaces the full allergen list (PUT semantics on the backend). */
+  replaceAllergens: async (allergens: AllergenInput[]) => {
+    const response = await apiClient.put<ApiResponse<UserAllergen[]>>(
       "/users/me/allergens",
-      data
+      { allergens }
     );
-    return response.data.data;
+    return response.data.data!;
   },
 
-  removeAllergen: async (id: string) => {
-    await apiClient.delete(`/users/me/allergens/${id}`);
+  deleteAccount: async () => {
+    await apiClient.delete("/users/me");
   },
 };

@@ -7,13 +7,21 @@ interface RateLimitConfig {
   max: number;
 }
 
+/**
+ * Sliding-window rate limiter backed by Redis sorted sets.
+ *
+ * `scope` namespaces the counter so different limiters (global vs auth)
+ * don't share — and double-count — the same window.
+ * Fails open if Redis is unavailable so the API stays up.
+ */
 export function rateLimiter(
   config: RateLimitConfig = { windowMs: 60_000, max: 60 },
+  scope: string = "global",
 ) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     // Use user ID if authenticated, otherwise IP
     const identifier = req.user?.id ?? req.ip ?? "unknown";
-    const key = `rl:${identifier}`;
+    const key = `rl:${scope}:${identifier}`;
     const now = Date.now();
     const windowStart = now - config.windowMs;
 
@@ -37,7 +45,7 @@ export function rateLimiter(
 
       next();
     } catch (err) {
-      if (err instanceof AppError) throw err;
+      if (err instanceof AppError) return next(err);
       // If Redis is down, allow the request through (fail-open for availability)
       next();
     }

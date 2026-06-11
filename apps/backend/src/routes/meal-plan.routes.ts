@@ -7,7 +7,7 @@ import {
 import { requireAuth } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { mealPlanController } from "../controllers/meal-plan.controller.js";
-import { updateMealPlanSchema } from "../schemas/meal-plan.schema.js";
+import { updateMealPlanSchema, uuidParamSchema } from "../schemas/meal-plan.schema.js";
 
 const router: RouterType = Router();
 
@@ -28,7 +28,7 @@ router.get(
 );
 
 // GET /api/v1/meal-plans/:id
-router.get("/:id", requireAuth, (req, res) =>
+router.get("/:id", requireAuth, validate({ params: uuidParamSchema }), (req, res) =>
   mealPlanController.getById(req, res),
 );
 
@@ -36,7 +36,7 @@ router.get("/:id", requireAuth, (req, res) =>
 router.post(
   "/:id/swap",
   requireAuth,
-  validate({ body: swapMealSchema }),
+  validate({ params: uuidParamSchema, body: swapMealSchema }),
   (req, res) => mealPlanController.swap(req, res),
 );
 
@@ -44,12 +44,12 @@ router.post(
 router.patch(
   "/:id",
   requireAuth,
-  validate({ body: updateMealPlanSchema }),
+  validate({ params: uuidParamSchema, body: updateMealPlanSchema }),
   (req, res) => mealPlanController.update(req, res),
 );
 
 // DELETE /api/v1/meal-plans/:id
-router.delete("/:id", requireAuth, (req, res) =>
+router.delete("/:id", requireAuth, validate({ params: uuidParamSchema }), (req, res) =>
   mealPlanController.delete(req, res),
 );
 

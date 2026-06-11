@@ -4,6 +4,7 @@ import { prisma } from "../config/database.js";
 import { logger } from "../utils/logger.js";
 import { spoonacularService } from "../services/spoonacular.service.js";
 import { CACHE_TTL } from "../config/constants.js";
+import { mapWithConcurrency } from "../utils/concurrency.js";
 
 const QUEUE_NAME = "recipe-cache-refresh";
 
@@ -37,33 +38,42 @@ export function createRecipeCacheRefreshWorker(): Worker {
         orderBy: { expiresAt: "asc" },
       });
 
-      let refreshed = 0;
-      for (const recipe of expiringRecipes) {
-        try {
-          if (!recipe.spoonacularId) continue;
-          const detail = await spoonacularService.getRecipeDetails(recipe.spoonacularId);
-          const nutrients = detail.nutrition?.nutrients;
+      // A few requests in flight at a time: keeps the nightly refresh quick
+      // while staying gentle on the Spoonacular quota.
+      const outcomes = await mapWithConcurrency(expiringRecipes, 4, async (recipe) => {
+        if (!recipe.spoonacularId) return false;
+        const detail = await spoonacularService.getRecipeDetails(recipe.spoonacularId);
+        const nutrients = detail.nutrition?.nutrients;
 
-          await prisma.recipe.update({
-            where: { id: recipe.id },
-            data: {
-              title: detail.title,
-              imageUrl: detail.image,
-              readyInMinutes: detail.readyInMinutes,
-              servings: detail.servings,
-              calories: nutrients?.find((n) => n.name.toLowerCase().includes("calories"))?.amount ?? recipe.calories,
-              proteinG: nutrients?.find((n) => n.name.toLowerCase().includes("protein"))?.amount ?? recipe.proteinG,
-              carbsG: nutrients?.find((n) => n.name.toLowerCase().includes("carbohydrates"))?.amount ?? recipe.carbsG,
-              fatG: nutrients?.find((n) => n.name.toLowerCase().includes("fat"))?.amount ?? recipe.fatG,
-              cachedAt: new Date(),
-              expiresAt: new Date(Date.now() + CACHE_TTL.RECIPE_DB_DAYS * 86400 * 1000),
-            },
-          });
-          refreshed++;
-        } catch (error) {
-          logger.warn({ error, recipeId: recipe.id }, "Failed to refresh recipe");
+        await prisma.recipe.update({
+          where: { id: recipe.id },
+          data: {
+            title: detail.title,
+            imageUrl: detail.image,
+            readyInMinutes: detail.readyInMinutes,
+            servings: detail.servings,
+            calories: nutrients?.find((n) => n.name.toLowerCase().includes("calories"))?.amount ?? recipe.calories,
+            proteinG: nutrients?.find((n) => n.name.toLowerCase().includes("protein"))?.amount ?? recipe.proteinG,
+            carbsG: nutrients?.find((n) => n.name.toLowerCase().includes("carbohydrates"))?.amount ?? recipe.carbsG,
+            fatG: nutrients?.find((n) => n.name.toLowerCase().includes("fat"))?.amount ?? recipe.fatG,
+            cachedAt: new Date(),
+            expiresAt: new Date(Date.now() + CACHE_TTL.RECIPE_DB_DAYS * 86400 * 1000),
+          },
+        });
+        return true;
+      });
+
+      let refreshed = 0;
+      outcomes.forEach((outcome, i) => {
+        if (outcome.status === "fulfilled") {
+          if (outcome.value) refreshed++;
+        } else {
+          logger.warn(
+            { error: outcome.reason, recipeId: expiringRecipes[i]?.id },
+            "Failed to refresh recipe",
+          );
         }
-      }
+      });
 
       logger.info({ refreshed, total: expiringRecipes.length }, "Recipe cache refresh complete");
       return { refreshed, total: expiringRecipes.length };
