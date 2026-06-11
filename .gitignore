@@ -64,3 +64,6 @@ apps/ml-service/notebooks/weights/*.npz
 
 # Expo (future)
 .expo/
+
+# Redis local dumps
+dump.rdb
