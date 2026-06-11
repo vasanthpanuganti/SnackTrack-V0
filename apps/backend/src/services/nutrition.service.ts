@@ -105,15 +105,72 @@ export class NutritionService {
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + 7);
 
-    // Build daily breakdowns for all 7 days
-    const dailyBreakdown: DailyNutritionSummary[] = [];
+    // One round-trip for the whole week (instead of 7 sequential daily
+    // queries), plus a single targets lookup shared by every day.
+    const [logs, preferences] = await Promise.all([
+      prisma.mealLog.findMany({
+        where: { userId, loggedAt: { gte: startDate, lt: endDate } },
+      }),
+      prisma.dietaryPreference.findUnique({ where: { userId } }),
+    ]);
+
+    const targets: NutritionTargets | null = preferences
+      ? {
+          calories: preferences.calorieTarget ?? null,
+          proteinG: preferences.proteinTargetG ?? null,
+          carbsG: preferences.carbTargetG ?? null,
+          fatG: preferences.fatTargetG ?? null,
+        }
+      : null;
+
+    // Pre-compute each day's [start, end) window with date arithmetic that
+    // mirrors getDailySummary (DST-safe via setDate).
+    const dayWindows: { dateStr: string; start: Date; end: Date }[] = [];
     for (let i = 0; i < 7; i++) {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + i);
-      const dateStr = date.toISOString().split("T")[0]!;
-      const summary = await this.getDailySummary(userId, dateStr);
-      dailyBreakdown.push(summary);
+      const start = new Date(startDate);
+      start.setDate(start.getDate() + i);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      dayWindows.push({
+        dateStr: start.toISOString().split("T")[0]!,
+        start,
+        end,
+      });
     }
+
+    const dailyBreakdown: DailyNutritionSummary[] = dayWindows.map((window) => {
+      const dayLogs = logs.filter(
+        (log) => log.loggedAt >= window.start && log.loggedAt < window.end,
+      );
+
+      const consumed: NutritionSummary = dayLogs.reduce(
+        (acc, log) => ({
+          calories: acc.calories + (log.calories ?? 0) * log.servings,
+          proteinG: acc.proteinG + (log.proteinG ?? 0) * log.servings,
+          carbsG: acc.carbsG + (log.carbsG ?? 0) * log.servings,
+          fatG: acc.fatG + (log.fatG ?? 0) * log.servings,
+        }),
+        emptyNutrition(),
+      );
+
+      consumed.calories = Math.round(consumed.calories * 10) / 10;
+      consumed.proteinG = Math.round(consumed.proteinG * 10) / 10;
+      consumed.carbsG = Math.round(consumed.carbsG * 10) / 10;
+      consumed.fatG = Math.round(consumed.fatG * 10) / 10;
+
+      return {
+        date: window.dateStr,
+        consumed,
+        targets,
+        mealCount: dayLogs.length,
+        percentages: {
+          calories: percentage(consumed.calories, targets?.calories),
+          protein: percentage(consumed.proteinG, targets?.proteinG),
+          carbs: percentage(consumed.carbsG, targets?.carbsG),
+          fat: percentage(consumed.fatG, targets?.fatG),
+        },
+      };
+    });
 
     // Calculate weekly totals
     const weeklyTotals: NutritionSummary = dailyBreakdown.reduce(

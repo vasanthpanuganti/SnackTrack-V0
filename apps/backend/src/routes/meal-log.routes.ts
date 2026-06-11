@@ -6,6 +6,7 @@ import {
 import { requireAuth } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { mealLogController } from "../controllers/meal-log.controller.js";
+import { uuidParamSchema } from "../schemas/meal-plan.schema.js";
 
 const router: RouterType = Router();
 
@@ -26,7 +27,7 @@ router.get(
 );
 
 // DELETE /api/v1/meal-logs/:id
-router.delete("/:id", requireAuth, (req, res) =>
+router.delete("/:id", requireAuth, validate({ params: uuidParamSchema }), (req, res) =>
   mealLogController.delete(req, res),
 );
 

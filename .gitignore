@@ -11,10 +11,17 @@ build/
 # Turborepo
 .turbo/
 
-# Environment
+# Environment — never commit secrets.
+# All .env variants are ignored; only the documented example is tracked.
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+
+# Keys & certificates
+*.pem
+*.key
+*.p12
+*.pfx
 
 # IDE
 .vscode/

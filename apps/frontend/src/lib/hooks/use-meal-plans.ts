@@ -1,31 +1,34 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mealPlansApi } from "../api/meal-plans.api";
+import {
+  mealPlansApi,
+  type SwapMealInput,
+  type UpdateMealPlanInput,
+} from "../api/meal-plans.api";
 import { toast } from "sonner";
-import type { MealPlan } from "@/types";
 
 export function useMealPlans() {
   return useQuery({
-    queryKey: ["meal-plans"],
-    queryFn: mealPlansApi.getMealPlans,
+    queryKey: ["meal-plans", "list"],
+    queryFn: () => mealPlansApi.getMealPlans(),
   });
 }
 
 export function useMealPlan(id: string) {
   return useQuery({
-    queryKey: ["meal-plans", id],
+    queryKey: ["meal-plans", "detail", id],
     queryFn: () => mealPlansApi.getMealPlan(id),
     enabled: !!id,
   });
 }
 
-export function useCreateMealPlan() {
+export function useGenerateMealPlan() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: mealPlansApi.createMealPlan,
+    mutationFn: mealPlansApi.generateMealPlan,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["meal-plans"] });
-      toast.success("Meal plan created successfully!");
+      toast.success("Your meal plan is ready!");
     },
   });
 }
@@ -34,11 +37,10 @@ export function useUpdateMealPlan() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<MealPlan> }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateMealPlanInput }) =>
       mealPlansApi.updateMealPlan(id, data),
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["meal-plans"] });
-      queryClient.invalidateQueries({ queryKey: ["meal-plans", variables.id] });
       toast.success("Meal plan updated!");
     },
   });
@@ -60,11 +62,14 @@ export function useSwapMeal() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ planId, data }: { planId: string; data: { itemId: string; newRecipeId: string } }) =>
+    mutationFn: ({ planId, data }: { planId: string; data: SwapMealInput }) =>
       mealPlansApi.swapMeal(planId, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["meal-plans", variables.planId] });
-      toast.success("Meal swapped successfully!");
+      queryClient.invalidateQueries({ queryKey: ["meal-plans"] });
+      queryClient.invalidateQueries({
+        queryKey: ["meal-plans", "detail", variables.planId],
+      });
+      toast.success("Meal swapped!");
     },
   });
 }

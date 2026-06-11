@@ -49,7 +49,7 @@ function mockAuth() {
 }
 
 const mockLogRow = {
-  id: "log-0001-0000-0000-000000000001",
+  id: "7d9f1a00-1111-4222-8333-444455556666",
   userId: USER_ID,
   recipeId: null,
   mealType: "lunch",

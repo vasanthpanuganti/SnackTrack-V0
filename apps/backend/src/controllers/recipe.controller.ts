@@ -3,6 +3,24 @@ import type { ApiResponse } from "@snacktrack/shared-types";
 import { recipeService } from "../services/recipe.service.js";
 
 export class RecipeController {
+  async list(req: Request, res: Response<ApiResponse>) {
+    const query = req.query as unknown as {
+      search?: string;
+      diet?: string;
+      maxReadyTime?: number;
+      page: number;
+      limit: number;
+    };
+
+    const data = await recipeService.listRecipes(query, req.user?.id);
+
+    res.json({
+      status: "success",
+      data,
+      error: null,
+    });
+  }
+
   async getRecommendations(req: Request, res: Response<ApiResponse>) {
     const rawLimit = Number(req.query.limit ?? 10);
     const limit = Number.isFinite(rawLimit)

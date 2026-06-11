@@ -1,18 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authApi } from "../api/auth.api";
+import { authApi, type AuthResult } from "../api/auth.api";
 import { useAuthStore } from "../store/auth-store";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 export function useAuth() {
-  const { user, setAuth, clearAuth } = useAuthStore();
+  const { user, setAuth, clearAuth, updateUser } = useAuthStore();
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  // Auth endpoints return a minimal user; hydrate the full profile right
+  // after so the dashboard greets the user by name without a flash.
+  const completeSignIn = async (data: AuthResult) => {
+    setAuth(data.user, data.tokens.accessToken, data.tokens.refreshToken);
+    try {
+      const profile = await authApi.getCurrentUser();
+      updateUser(profile);
+    } catch {
+      // Non-fatal: profile loads lazily on the dashboard
+    }
+  };
+
   const loginMutation = useMutation({
     mutationFn: authApi.login,
-    onSuccess: (data) => {
-      setAuth(data.user, data.session.access_token, data.session.refresh_token);
+    onSuccess: async (data) => {
+      await completeSignIn(data);
       toast.success("Welcome back!");
       router.push("/dashboard");
     },
@@ -20,16 +32,17 @@ export function useAuth() {
 
   const signupMutation = useMutation({
     mutationFn: authApi.signup,
-    onSuccess: (data) => {
-      setAuth(data.user, data.session.access_token, data.session.refresh_token);
-      toast.success("Account created successfully!");
+    onSuccess: async (data) => {
+      await completeSignIn(data);
+      toast.success("Account created — welcome to SnackTrack!");
       router.push("/dashboard");
     },
   });
 
   const logoutMutation = useMutation({
     mutationFn: authApi.logout,
-    onSuccess: () => {
+    onSettled: () => {
+      // Always clear local state, even if the server call failed
       clearAuth();
       queryClient.clear();
       toast.success("Logged out successfully");

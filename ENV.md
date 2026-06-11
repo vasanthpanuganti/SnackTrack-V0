@@ -72,7 +72,17 @@ Both are **required** in development/production.
 
 | Variable         | Required | Default                  | Notes |
 | ---------------- | -------- | ------------------------ | ----- |
-| `ML_SERVICE_URL` | Yes (dev/prod) | `http://localhost:8000`  | Points to the Python ML service. Backend startup now fails fast if ML health check fails, because personalized recommendations are a core feature. |
+| `ML_SERVICE_URL` | Yes (dev/prod) | `http://localhost:8000`  | Points to the Python ML service. If it's unreachable the API still starts and serves general (non-personalized) recommendations; a warning is logged and `/health` reports `services.ml: false`. |
+
+### Frontend (public — safe to expose to the browser)
+
+Set these for the Next.js app. `NEXT_PUBLIC_*` values are compiled into the
+client bundle, so they must never contain secrets.
+
+| Variable              | Required | Default                          | Notes |
+| --------------------- | -------- | -------------------------------- | ----- |
+| `NEXT_PUBLIC_API_URL` | No       | `http://localhost:3001/api/v1`   | Base URL of the backend API as reached from the browser. |
+| `NEXT_PUBLIC_APP_URL` | No       | `http://localhost:3000`          | Canonical site URL, used for Open Graph metadata. |
 
 ### CORS
 

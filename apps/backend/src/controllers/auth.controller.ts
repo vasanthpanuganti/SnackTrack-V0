@@ -1,7 +1,23 @@
 import type { Request, Response } from "express";
 import type { ApiResponse } from "@snacktrack/shared-types";
 import { authService } from "../services/auth.service.js";
+import { env } from "../config/env.js";
+import { AppError } from "../utils/AppError.js";
 import type { SignupInput, LoginInput, RefreshInput } from "../schemas/auth.schema.js";
+
+// Open-redirect protection: OAuth redirect targets must be one of our
+// configured frontend origins.
+function isAllowedRedirect(url: string): boolean {
+  const allowedOrigins = env.CORS_ORIGINS.split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  try {
+    const target = new URL(url);
+    return allowedOrigins.some((origin) => new URL(origin).origin === target.origin);
+  } catch {
+    return false;
+  }
+}
 
 export class AuthController {
   async signup(req: Request<unknown, unknown, SignupInput>, res: Response<ApiResponse>) {
@@ -26,7 +42,14 @@ export class AuthController {
 
   async oauth(req: Request, res: Response<ApiResponse>) {
     const provider = req.params.provider as "google" | "apple";
-    const redirectTo = (req.query.redirectTo as string) ?? `${req.protocol}://${req.get("host")}/api/v1/auth/callback`;
+    const requestedRedirect = req.query.redirectTo as string | undefined;
+
+    if (requestedRedirect && !isAllowedRedirect(requestedRedirect)) {
+      throw new AppError(400, "INVALID_REDIRECT", "redirectTo must be an allowed origin");
+    }
+
+    const redirectTo =
+      requestedRedirect ?? `${req.protocol}://${req.get("host")}/api/v1/auth/callback`;
 
     const result = await authService.oauthSignIn(provider, redirectTo);
 

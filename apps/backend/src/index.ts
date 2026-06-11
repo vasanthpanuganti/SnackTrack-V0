@@ -13,15 +13,16 @@ const app = createApp();
 let server: ReturnType<typeof app.listen> | null = null;
 
 async function startServer() {
-  // ML is a core dependency: fail fast on startup if the model service is unhealthy.
+  // ML powers personalized recommendations but every consumer has a
+  // general-catalog fallback, so an unreachable model service must not
+  // block the API from serving traffic. Surface it loudly instead.
   if (env.NODE_ENV !== "test") {
     const mlHealthy = await mlService.isHealthy();
     if (!mlHealthy) {
-      logger.error(
+      logger.warn(
         { mlServiceUrl: env.ML_SERVICE_URL },
-        "ML service is required but unhealthy. Refusing to start API.",
+        "ML service unreachable at startup — personalized recommendations will fall back to the general catalog until it recovers.",
       );
-      process.exit(1);
     }
   }
 
@@ -36,6 +37,11 @@ async function startServer() {
       logger.error({ err }, "Failed to initialize background jobs");
     }
   });
+
+  // Keep-alive must outlive typical load balancer idle timeouts (60s)
+  // to avoid racy ECONNRESET on reused connections.
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
 }
 
 void startServer().catch((err) => {
@@ -77,11 +83,12 @@ async function shutdown(signal: string) {
     process.exit(0);
   });
 
-  // Force exit after 10 seconds if graceful shutdown stalls
+  // Force exit after 10 seconds if graceful shutdown stalls.
+  // unref() so this timer never keeps an otherwise-finished process alive.
   setTimeout(() => {
     logger.error("Graceful shutdown timed out, forcing exit");
     process.exit(1);
-  }, 10_000);
+  }, 10_000).unref();
 }
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));

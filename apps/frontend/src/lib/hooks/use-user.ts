@@ -1,12 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { usersApi } from "../api/users.api";
+import { usersApi, type AllergenInput } from "../api/users.api";
 import { toast } from "sonner";
 import { useAuthStore } from "../store/auth-store";
 
 export function useUserProfile() {
+  const { user } = useAuthStore();
   return useQuery({
     queryKey: ["user", "profile"],
     queryFn: usersApi.getProfile,
+    enabled: !!user,
+    staleTime: 60 * 1000,
   });
 }
 
@@ -24,52 +27,31 @@ export function useUpdateProfile() {
   });
 }
 
-export function useUserPreferences() {
-  return useQuery({
-    queryKey: ["user", "preferences"],
-    queryFn: usersApi.getPreferences,
-  });
-}
-
 export function useUpdatePreferences() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: usersApi.updatePreferences,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user", "preferences"] });
+      queryClient.invalidateQueries({ queryKey: ["user"] });
+      // Targets changed — nutrition percentages must recompute
+      queryClient.invalidateQueries({ queryKey: ["nutrition"] });
       toast.success("Preferences updated!");
     },
   });
 }
 
-export function useUserAllergens() {
-  return useQuery({
-    queryKey: ["user", "allergens"],
-    queryFn: usersApi.getAllergens,
-  });
-}
-
-export function useAddAllergen() {
+export function useReplaceAllergens() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: usersApi.addAllergen,
+    mutationFn: (allergens: AllergenInput[]) =>
+      usersApi.replaceAllergens(allergens),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user", "allergens"] });
-      toast.success("Allergen added");
-    },
-  });
-}
-
-export function useRemoveAllergen() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: usersApi.removeAllergen,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user", "allergens"] });
-      toast.success("Allergen removed");
+      queryClient.invalidateQueries({ queryKey: ["user"] });
+      // Allergen changes affect which recipes are shown as safe
+      queryClient.invalidateQueries({ queryKey: ["recipes"] });
+      toast.success("Allergens updated");
     },
   });
 }

@@ -1,57 +1,61 @@
 import { apiClient } from "./client";
-import type { User } from "@/types";
+import type { ApiResponse, UserProfile } from "@/types";
 
-interface SignupInput {
+export interface SignupInput {
   email: string;
   password: string;
-  displayName?: string;
+  displayName: string;
 }
 
-interface LoginInput {
+export interface LoginInput {
   email: string;
   password: string;
 }
 
-interface AuthResponse {
-  status: string;
-  data: {
-    user: User;
-    session: {
-      access_token: string;
-      refresh_token: string;
-      expires_at: number;
-    };
-  };
-  error: null;
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  expiresAt: number;
+}
+
+export interface AuthResult {
+  user: { id: string; email: string };
+  tokens: AuthTokens;
 }
 
 export const authApi = {
   signup: async (data: SignupInput) => {
-    const response = await apiClient.post<AuthResponse>("/auth/signup", data);
-    return response.data.data;
+    const response = await apiClient.post<ApiResponse<AuthResult>>(
+      "/auth/signup",
+      data
+    );
+    return response.data.data!;
   },
 
   login: async (data: LoginInput) => {
-    const response = await apiClient.post<AuthResponse>("/auth/login", data);
-    return response.data.data;
+    const response = await apiClient.post<ApiResponse<AuthResult>>(
+      "/auth/login",
+      data
+    );
+    return response.data.data!;
   },
 
   logout: async () => {
-    const response = await apiClient.post("/auth/logout");
+    const response = await apiClient.post<ApiResponse>("/auth/logout");
     return response.data;
   },
 
   refreshToken: async (refreshToken: string) => {
-    const response = await apiClient.post<AuthResponse>("/auth/refresh", {
-      refreshToken,
-    });
-    return response.data.data;
+    const response = await apiClient.post<ApiResponse<AuthResult>>(
+      "/auth/refresh",
+      { refreshToken }
+    );
+    return response.data.data!;
   },
 
   getCurrentUser: async () => {
-    const response = await apiClient.get<{ status: string; data: User }>(
-      "/users/me"
-    );
-    return response.data.data;
+    const response = await apiClient.get<ApiResponse<UserProfile>>("/users/me");
+    return response.data.data!;
   },
 };
