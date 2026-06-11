@@ -91,9 +91,7 @@ describe("Meal Log endpoints", () => {
       expect(res.body.status).toBe("success");
       expect(res.body.data.foodName).toBe("Grilled Chicken Salad");
       expect(res.body.data.mealType).toBe("lunch");
-      expect(redis.del).toHaveBeenCalledWith(
-        `nutrition:daily:${USER_ID}:2025-06-15`,
-      );
+      expect(redis.del).toHaveBeenCalledWith(`nutrition:daily:${USER_ID}:2025-06-15`);
     });
 
     it("returns 422 for missing required fields", async () => {
@@ -157,9 +155,7 @@ describe("Meal Log endpoints", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("success");
-      expect(redis.del).toHaveBeenCalledWith(
-        `nutrition:daily:${USER_ID}:2025-06-15`,
-      );
+      expect(redis.del).toHaveBeenCalledWith(`nutrition:daily:${USER_ID}:2025-06-15`);
     });
 
     it("returns 404 for non-existent log", async () => {

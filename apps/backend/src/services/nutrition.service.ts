@@ -26,10 +26,7 @@ function dateKey(date: Date): string {
 }
 
 export class NutritionService {
-  async getDailySummary(
-    userId: string,
-    date: string,
-  ): Promise<DailyNutritionSummary> {
+  async getDailySummary(userId: string, date: string): Promise<DailyNutritionSummary> {
     // Check Redis cache (populated by nutrition-precompute job)
     const cacheKey = dailyCacheKey(userId, date);
     try {
@@ -112,10 +109,7 @@ export class NutritionService {
     }
   }
 
-  async getWeeklySummary(
-    userId: string,
-    weekStart: string,
-  ): Promise<WeeklyNutritionSummary> {
+  async getWeeklySummary(userId: string, weekStart: string): Promise<WeeklyNutritionSummary> {
     const startDate = new Date(weekStart);
     startDate.setHours(0, 0, 0, 0);
     // endDate is the exclusive query bound (start + 7d); the reported

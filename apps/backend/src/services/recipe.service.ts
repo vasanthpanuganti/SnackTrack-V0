@@ -5,17 +5,14 @@ import { redis } from "../config/redis.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
 import { CACHE_TTL } from "../config/constants.js";
-import {
-  spoonacularService,
-  type SpoonacularRecipeDetail,
-} from "./spoonacular.service.js";
+import { spoonacularService, type SpoonacularRecipeDetail } from "./spoonacular.service.js";
 import { allergenService } from "./allergen.service.js";
 import { mlService } from "./ml.service.js";
 import { captureMlFailure } from "../config/sentry.js";
 
 // Prisma requires Prisma.JsonNull instead of null for nullable JSON fields
 function jsonOrNull(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
-  return value === null || value === undefined ? Prisma.JsonNull : value as Prisma.InputJsonValue;
+  return value === null || value === undefined ? Prisma.JsonNull : (value as Prisma.InputJsonValue);
 }
 
 function nutrientValue(
@@ -42,19 +39,23 @@ function mapSpoonacularToRecipeData(detail: SpoonacularRecipeDetail) {
     sodiumMg: nutrientValue(nutrients, "Sodium"),
     fiberG: nutrientValue(nutrients, "Fiber"),
     sugarG: nutrientValue(nutrients, "Sugar"),
-    ingredients: jsonOrNull(detail.extendedIngredients?.map((i) => ({
-      name: i.name,
-      amount: i.amount,
-      unit: i.unit,
-      original: i.original,
-    })) ?? null),
+    ingredients: jsonOrNull(
+      detail.extendedIngredients?.map((i) => ({
+        name: i.name,
+        amount: i.amount,
+        unit: i.unit,
+        original: i.original,
+      })) ?? null,
+    ),
     allergens: [] as string[],
     dietLabels: detail.diets ?? [],
     cuisineTypes: detail.cuisines ?? [],
-    instructions: jsonOrNull(detail.analyzedInstructions?.[0]?.steps?.map((s) => ({
-      number: s.number,
-      step: s.step,
-    })) ?? null),
+    instructions: jsonOrNull(
+      detail.analyzedInstructions?.[0]?.steps?.map((s) => ({
+        number: s.number,
+        step: s.step,
+      })) ?? null,
+    ),
     expiresAt: new Date(Date.now() + CACHE_TTL.RECIPE_DB_DAYS * 86400 * 1000),
   };
 }
@@ -157,9 +158,7 @@ function spoonacularIntolerances(allergens: string[]): string | undefined {
   const values = [
     ...new Set(
       allergens
-        .map((allergen) =>
-          SPOONACULAR_INTOLERANCES[allergen.toLowerCase().replaceAll("_", " ")]
-        )
+        .map((allergen) => SPOONACULAR_INTOLERANCES[allergen.toLowerCase().replaceAll("_", " ")])
         .filter((value): value is string => Boolean(value)),
     ),
   ];
@@ -300,11 +299,7 @@ export class RecipeService {
     return { recipes: rows.map(mapPrismaToRecipe), total, page, limit };
   }
 
-  async searchRecipes(
-    query: string,
-    limit: number,
-    userId?: string,
-  ): Promise<Recipe[]> {
+  async searchRecipes(query: string, limit: number, userId?: string): Promise<Recipe[]> {
     const userAllergens = userId ? await allergenService.getUserAllergens(userId) : [];
     const intolerances = spoonacularIntolerances(userAllergens);
 
@@ -350,10 +345,7 @@ export class RecipeService {
       if (outcome.status === "fulfilled") {
         recipes.push(outcome.value);
       } else {
-        logger.warn(
-          { error: outcome.reason, recipeId: results[i]?.id },
-          "Failed to cache recipe",
-        );
+        logger.warn({ error: outcome.reason, recipeId: results[i]?.id }, "Failed to cache recipe");
       }
     });
 
@@ -391,15 +383,9 @@ export class RecipeService {
     }
 
     // If expired and has spoonacularId, refresh from API
-    if (
-      dbRecipe.expiresAt &&
-      dbRecipe.expiresAt < new Date() &&
-      dbRecipe.spoonacularId
-    ) {
+    if (dbRecipe.expiresAt && dbRecipe.expiresAt < new Date() && dbRecipe.spoonacularId) {
       try {
-        const detail = await spoonacularService.getRecipeDetails(
-          dbRecipe.spoonacularId,
-        );
+        const detail = await spoonacularService.getRecipeDetails(dbRecipe.spoonacularId);
         const recipeData = mapSpoonacularToRecipeData(detail);
         const updated = await prisma.recipe.update({
           where: { id },
@@ -431,12 +417,14 @@ export class RecipeService {
     return recipe;
   }
 
-  async getCachedRecipes(options: {
-    diet?: string;
-    maxReadyInMinutes?: number;
-    limit?: number;
-    excludeIds?: string[];
-  } = {}): Promise<Recipe[]> {
+  async getCachedRecipes(
+    options: {
+      diet?: string;
+      maxReadyInMinutes?: number;
+      limit?: number;
+      excludeIds?: string[];
+    } = {},
+  ): Promise<Recipe[]> {
     const where: Record<string, unknown> = {};
 
     if (options.diet) {

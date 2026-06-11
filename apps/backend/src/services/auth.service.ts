@@ -21,11 +21,7 @@ interface AuthResult {
   tokens: AuthTokens;
 }
 
-function requireEmail(
-  email: string | null | undefined,
-  statusCode: number,
-  code: string,
-): string {
+function requireEmail(email: string | null | undefined, statusCode: number, code: string): string {
   if (!email) {
     throw new AppError(statusCode, code, "Account has no email address");
   }
@@ -125,8 +121,7 @@ export class AuthService {
     await this.provisionAppUser({
       id: data.user.id,
       email,
-      displayName:
-        (data.user.user_metadata?.display_name as string | undefined) ?? null,
+      displayName: (data.user.user_metadata?.display_name as string | undefined) ?? null,
     });
 
     return {
@@ -171,8 +166,7 @@ export class AuthService {
     await this.provisionAppUser({
       id: data.user.id,
       email,
-      displayName:
-        (data.user.user_metadata?.display_name as string | undefined) ?? null,
+      displayName: (data.user.user_metadata?.display_name as string | undefined) ?? null,
     });
 
     return {

@@ -85,10 +85,7 @@ describe("RecipeService allergen filtering", () => {
     vi.mocked(prisma.recipe.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.recipe.count).mockResolvedValue(0 as never);
 
-    const result = await recipeService.listRecipes(
-      { page: 1, limit: 12 },
-      USER_ID,
-    );
+    const result = await recipeService.listRecipes({ page: 1, limit: 12 }, USER_ID);
 
     expect(result).toEqual({ recipes: [], total: 0, page: 1, limit: 12 });
     expect(prisma.recipe.findMany).toHaveBeenCalledWith(
