@@ -82,6 +82,6 @@ export const weeklyNutritionQuerySchema = z.object({
 export const mealLogQuerySchema = z.object({
   date: z.string().date().optional(),
   range: z.enum(["day", "week", "month"]).default("day"),
-  cursor: z.string().optional(),
+  cursor: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });

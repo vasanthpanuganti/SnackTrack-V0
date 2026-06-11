@@ -63,7 +63,7 @@ export default function RecipeDetailPage({
     const mine = new Set(
       profile.allergens.map((a) => a.allergenType.toLowerCase())
     );
-    return recipe.allergens.filter((a) => mine.has(a.toLowerCase()));
+    return (recipe.allergens ?? []).filter((a) => mine.has(a.toLowerCase()));
   }, [recipe, profile]);
 
   if (isLoading) {
@@ -111,7 +111,8 @@ export default function RecipeDetailPage({
         recipeId: recipe.id,
         mealType,
         foodName: recipe.title,
-        servings: Number(servings) || 1,
+        // Clamp to the API's accepted range; free-text input can hold anything
+        servings: Math.min(99, Math.max(0.1, Number(servings) || 1)),
         calories: recipe.calories,
         proteinG: recipe.proteinG,
         carbsG: recipe.carbsG,
@@ -141,7 +142,7 @@ export default function RecipeDetailPage({
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
           <div className="mb-3 flex flex-wrap gap-2">
-            {recipe.dietLabels.slice(0, 4).map((label) => (
+            {(recipe.dietLabels ?? []).slice(0, 4).map((label) => (
               <Badge key={label} variant="soft" className="glass border-white/20 capitalize">
                 {label}
               </Badge>
@@ -238,9 +239,9 @@ export default function RecipeDetailPage({
           </DialogContent>
         </Dialog>
 
-        {recipe.cuisineTypes.length > 0 && (
+        {(recipe.cuisineTypes ?? []).length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {recipe.cuisineTypes.slice(0, 3).map((cuisine) => (
+            {(recipe.cuisineTypes ?? []).slice(0, 3).map((cuisine) => (
               <Badge key={cuisine} variant="outline" className="capitalize">
                 {cuisine}
               </Badge>

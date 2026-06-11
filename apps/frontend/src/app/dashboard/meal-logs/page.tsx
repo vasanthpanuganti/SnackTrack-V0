@@ -139,7 +139,8 @@ export default function MealLogsPage() {
       {
         foodName: draft.foodName.trim(),
         mealType: draft.mealType,
-        servings: Number(draft.servings) || 1,
+        // Clamp to the API's accepted range; free-text input can hold anything
+        servings: Math.min(99, Math.max(0.1, Number(draft.servings) || 1)),
         calories: numOrNull(draft.calories),
         proteinG: numOrNull(draft.proteinG),
         carbsG: numOrNull(draft.carbsG),

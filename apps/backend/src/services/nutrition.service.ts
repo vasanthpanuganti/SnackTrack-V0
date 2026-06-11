@@ -102,8 +102,12 @@ export class NutritionService {
   ): Promise<WeeklyNutritionSummary> {
     const startDate = new Date(weekStart);
     startDate.setHours(0, 0, 0, 0);
+    // endDate is the exclusive query bound (start + 7d); the reported
+    // weekEnd is the inclusive 7th day (start + 6d).
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + 7);
+    const lastDay = new Date(startDate);
+    lastDay.setDate(lastDay.getDate() + 6);
 
     // One round-trip for the whole week (instead of 7 sequential daily
     // queries), plus a single targets lookup shared by every day.
@@ -199,7 +203,7 @@ export class NutritionService {
 
     return {
       weekStart,
-      weekEnd: endDate.toISOString().split("T")[0]!,
+      weekEnd: lastDay.toISOString().split("T")[0]!,
       dailyBreakdown,
       weeklyTotals,
       weeklyAverages,

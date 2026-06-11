@@ -84,6 +84,13 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "img.spoonacular.com",
       },
+      {
+        // recipe.cloudinaryUrl fallback — next/image throws on
+        // non-allowlisted hosts, so this must be registered even though
+        // Cloudinary is an optional integration
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
     ],
   },
 };

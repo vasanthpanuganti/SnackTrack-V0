@@ -214,6 +214,16 @@ export class RecipeService {
       where.readyInMinutes = { lte: maxReadyTime };
     }
 
+    // Allergen exclusion happens in the query itself so that page size and
+    // total stay exact. Filtering after pagination would shrink pages and
+    // report a total that includes recipes the user can never see.
+    if (userId) {
+      const userAllergens = await allergenService.getUserAllergens(userId);
+      if (userAllergens.length > 0) {
+        where.NOT = { allergens: { hasSome: userAllergens } };
+      }
+    }
+
     const [rows, total] = await prisma.$transaction([
       prisma.recipe.findMany({
         where,
@@ -224,13 +234,7 @@ export class RecipeService {
       prisma.recipe.count({ where }),
     ]);
 
-    let recipes = rows.map(mapPrismaToRecipe);
-    if (userId && recipes.length > 0) {
-      const { safe } = await allergenService.filterSafeRecipes(recipes, userId);
-      recipes = safe;
-    }
-
-    return { recipes, total, page, limit };
+    return { recipes: rows.map(mapPrismaToRecipe), total, page, limit };
   }
 
   async searchRecipes(

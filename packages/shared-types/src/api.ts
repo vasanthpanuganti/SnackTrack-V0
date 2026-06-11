@@ -28,7 +28,9 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
 }
 
 // Zod schemas for validation reuse
+// Cursors are row UUIDs; rejecting malformed values here keeps garbage
+// out of Prisma cursor lookups (which would otherwise 500).
 export const cursorPaginationSchema = z.object({
-  cursor: z.string().optional(),
+  cursor: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });

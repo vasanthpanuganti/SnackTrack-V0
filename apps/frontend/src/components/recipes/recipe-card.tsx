@@ -15,6 +15,8 @@ export function RecipeCard({
   recipe: Recipe;
   priority?: boolean;
 }) {
+  // Defensive: tolerate partial payloads from older cached responses
+  const dietLabels = recipe.dietLabels ?? [];
   return (
     <HoverLift>
       <Link
@@ -29,9 +31,9 @@ export function RecipeCard({
               priority={priority}
               className="transition-transform duration-500 group-hover:scale-[1.04]"
             />
-            {recipe.dietLabels.length > 0 && (
+            {dietLabels.length > 0 && (
               <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-                {recipe.dietLabels.slice(0, 2).map((label) => (
+                {dietLabels.slice(0, 2).map((label) => (
                   <Badge
                     key={label}
                     variant="soft"

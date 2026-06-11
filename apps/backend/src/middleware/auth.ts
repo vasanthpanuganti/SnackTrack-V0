@@ -23,9 +23,15 @@ export async function requireAuth(
     return next(new AppError(401, "UNAUTHORIZED", "Invalid or expired token"));
   }
 
+  // OAuth providers can issue accounts without an email; we require one
+  // because it anchors the application user record.
+  if (!user.email) {
+    return next(new AppError(401, "UNAUTHORIZED", "Account has no email address"));
+  }
+
   req.user = {
     id: user.id,
-    email: user.email!,
+    email: user.email,
     role: user.role ?? "user",
   };
 
@@ -45,10 +51,10 @@ export async function optionalAuth(
       const {
         data: { user },
       } = await supabaseAdmin.auth.getUser(token);
-      if (user) {
+      if (user?.email) {
         req.user = {
           id: user.id,
-          email: user.email!,
+          email: user.email,
           role: user.role ?? "user",
         };
       }

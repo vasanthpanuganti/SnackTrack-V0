@@ -82,7 +82,7 @@ export default function DashboardPage() {
   ];
 
   const trendData =
-    weekly?.dailyBreakdown.map((day) => ({
+    weekly?.dailyBreakdown?.map((day) => ({
       day: format(new Date(`${day.date}T00:00:00`), "EEE"),
       calories: Math.round(day.consumed.calories),
     })) ?? [];
