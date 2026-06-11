@@ -142,7 +142,7 @@ model MealPlanItem {
   createdAt        DateTime @default(now()) @map("created_at")
 
   plan   MealPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  recipe Recipe   @relation(fields: [recipeId], references: [id])
+  recipe Recipe   @relation(fields: [recipeId], references: [id], onDelete: Restrict)
 
   @@unique([planId, dayNumber, mealType])
   @@map("meal_plan_items")
@@ -166,7 +166,7 @@ model MealLog {
   synced   Boolean  @default(true)
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recipe Recipe? @relation(fields: [recipeId], references: [id])
+  recipe Recipe? @relation(fields: [recipeId], references: [id], onDelete: SetNull)
 
   @@index([userId, loggedAt])
   @@index([userId, mealType])
@@ -185,7 +185,7 @@ model UserInteraction {
   createdAt       DateTime @default(now()) @map("created_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recipe Recipe @relation(fields: [recipeId], references: [id])
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([recipeId])

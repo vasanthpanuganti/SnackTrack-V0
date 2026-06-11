@@ -35,6 +35,9 @@ jobs:
 
       - name: Generate Prisma client
         run: pnpm --filter @snacktrack/backend db:generate
+        env:
+          DATABASE_URL: postgresql://snacktrack:snacktrack_test@localhost:5432/snacktrack_test
+          DIRECT_URL: postgresql://snacktrack:snacktrack_test@localhost:5432/snacktrack_test
 
       - name: Build all packages
         run: pnpm build
@@ -61,6 +64,9 @@ jobs:
 
       - name: Generate Prisma client
         run: pnpm --filter @snacktrack/backend db:generate
+        env:
+          DATABASE_URL: postgresql://snacktrack:snacktrack_test@localhost:5432/snacktrack_test
+          DIRECT_URL: postgresql://snacktrack:snacktrack_test@localhost:5432/snacktrack_test
 
       - name: Build shared-types
         run: pnpm --filter @snacktrack/shared-types build
