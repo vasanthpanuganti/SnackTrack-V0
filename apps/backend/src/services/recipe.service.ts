@@ -103,7 +103,57 @@ function mapPrismaToRecipe(r: {
   };
 }
 
+// Recommendation cache: ranked IDs per user (one key → trivial invalidation),
+// plus a short negative cache so an ML outage degrades instantly instead of
+// stalling every request on the fetch timeout.
+const RECS_CACHE_TTL = 300; // 5 min
+const RECS_ML_DOWN_TTL = 30; // seconds
+const RECS_FETCH_COUNT = 50; // rank once, slice per request
+
+export function recsCacheKey(userId: string): string {
+  return `recs:ml:v1:${userId}`;
+}
+
 export class RecipeService {
+  /** Ranked recipe IDs for a user — Redis-cached, ML-backed. */
+  private async getRankedRecipeIds(userId: string): Promise<string[]> {
+    const cacheKey = recsCacheKey(userId);
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) return JSON.parse(cached) as string[];
+    } catch {
+      // Cache unavailable — fall through to ML
+    }
+
+    try {
+      const mlDown = await redis.get("recs:ml:down");
+      if (mlDown) return [];
+    } catch {
+      // Redis down — just try ML
+    }
+
+    const recommendations = await mlService
+      .getRecommendations(userId, RECS_FETCH_COUNT)
+      .catch(async (error) => {
+        // Remember the outage briefly so subsequent requests skip the
+        // timeout and fall back immediately.
+        try {
+          await redis.setex("recs:ml:down", RECS_ML_DOWN_TTL, "1");
+        } catch {
+          // Non-critical
+        }
+        throw error;
+      });
+
+    const rankedIds = recommendations.map((r) => r.recipeId);
+    try {
+      await redis.setex(cacheKey, RECS_CACHE_TTL, JSON.stringify(rankedIds));
+    } catch {
+      // Non-critical
+    }
+    return rankedIds;
+  }
+
   async getRecommendationsForUser(
     userId: string,
     limit: number,
@@ -115,19 +165,19 @@ export class RecipeService {
     recommendationMode: "personalized" | "general";
   }> {
     try {
-      // Personalized path: ask ML for ranked recipe IDs and resolve them to DB recipes.
-      const recommendations = await mlService.getRecommendations(userId, limit);
-      const rankedIds = recommendations.map((r) => r.recipeId);
+      // Personalized path: ranked IDs (cached) resolved to DB recipes.
+      const rankedIds = await this.getRankedRecipeIds(userId);
 
       if (rankedIds.length > 0) {
-        const rankedSet = new Set(rankedIds);
+        // Resolve a small buffer beyond `limit` so a few stale IDs (recipes
+        // expired from the catalog) don't shrink the page.
+        const windowIds = rankedIds.slice(0, Math.min(rankedIds.length, limit * 2));
         const found = await prisma.recipe.findMany({
-          where: { id: { in: rankedIds } },
+          where: { id: { in: windowIds } },
         });
 
         const byId = new Map(found.map((recipe) => [recipe.id, recipe]));
-        const ordered = rankedIds
-          .filter((id) => rankedSet.has(id))
+        const ordered = windowIds
           .map((id) => byId.get(id))
           .filter((recipe): recipe is NonNullable<typeof recipe> => Boolean(recipe))
           .map(mapPrismaToRecipe);

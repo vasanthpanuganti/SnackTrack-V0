@@ -35,6 +35,12 @@ export default function RecommendationsPage() {
               <Badge variant="outline">Popular picks</Badge>
             ) : null}
           </p>
+          {data?.recommendationMode === "general" && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Log a few meals and swap plan items — your picks turn personal
+              as the model learns your taste.
+            </p>
+          )}
         </div>
         <Button
           variant="outline"

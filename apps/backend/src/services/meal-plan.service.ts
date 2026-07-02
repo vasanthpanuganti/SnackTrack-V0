@@ -1,8 +1,9 @@
 import type { MealPlan, MealPlanItem, Recipe } from "@snacktrack/shared-types";
 import { prisma } from "../config/database.js";
+import { redis } from "../config/redis.js";
 import { AppError } from "../utils/AppError.js";
 import { logger } from "../utils/logger.js";
-import { recipeService } from "./recipe.service.js";
+import { recipeService, recsCacheKey } from "./recipe.service.js";
 import { allergenService } from "./allergen.service.js";
 import { mlService } from "./ml.service.js";
 import { captureMlFailure } from "../config/sentry.js";
@@ -375,6 +376,14 @@ export class MealPlanService {
         },
       ],
     });
+
+    // The swap changed the user's taste signal — drop their cached
+    // recommendation ranking so the next fetch reflects it.
+    try {
+      await redis.del(recsCacheKey(userId));
+    } catch {
+      // Non-critical: the cache expires on its own TTL
+    }
 
     // Re-train asynchronously after user feedback interactions.
     // This is fire-and-forget so swap response latency stays low.

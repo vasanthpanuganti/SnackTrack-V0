@@ -62,7 +62,9 @@ export class MLService {
           top_n: topN,
           exclude_recipe_ids: excludeRecipeIds,
         }),
-        signal: AbortSignal.timeout(10000),
+        // Recommendations sit on the dashboard's critical path; a hung ML
+        // service must degrade to the general catalog quickly, not in 10s.
+        signal: AbortSignal.timeout(4000),
       });
 
       if (!response.ok) {

@@ -10,6 +10,15 @@ export const MEAL_TYPE_META: Record<
   snack: { label: "Snack", emoji: "🍎", order: 3 },
 };
 
+/** Sensible meal-type default for "log now" flows, based on local time. */
+export function defaultMealType(now: Date = new Date()): MealType {
+  const h = now.getHours() + now.getMinutes() / 60;
+  if (h < 10.5) return "breakfast";
+  if (h < 15) return "lunch";
+  if (h < 21) return "dinner";
+  return "snack";
+}
+
 export const DIET_OPTIONS = [
   { value: "none", label: "No restrictions" },
   { value: "vegetarian", label: "Vegetarian" },

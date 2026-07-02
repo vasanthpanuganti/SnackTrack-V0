@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format, addDays, isToday } from "date-fns";
 import {
   BookOpen,
@@ -16,7 +17,7 @@ import { useMealLogs, useCreateMealLog, useDeleteMealLog } from "@/lib/hooks/use
 import { useDailyNutrition } from "@/lib/hooks/use-nutrition";
 import { useFoodSearch } from "@/lib/hooks/use-food-search";
 import { formatDateKey } from "@/lib/nutrition";
-import { MEAL_TYPE_META } from "@/lib/constants";
+import { MEAL_TYPE_META, defaultMealType } from "@/lib/constants";
 import type { MealLog, MealType } from "@/types";
 
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,9 @@ const emptyDraft = (mealType: MealType = "breakfast"): DraftLog => ({
   fatG: "",
 });
 
-export default function MealLogsPage() {
+function MealLogsDiary() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [date, setDate] = useState(() => new Date());
   const dateKey = useMemo(() => formatDateKey(date), [date]);
 
@@ -90,6 +93,18 @@ export default function MealLogsPage() {
   const [deleteTarget, setDeleteTarget] = useState<MealLog | null>(null);
 
   const { data: foodResults, isFetching: searching } = useFoodSearch(foodQuery);
+
+  // "Log a meal" CTAs elsewhere deep-link here with ?add=1 — open the dialog
+  // immediately (meal pre-picked by time of day) instead of a second click.
+  useEffect(() => {
+    if (searchParams.get("add") === "1") {
+      setDraft(emptyDraft(defaultMealType()));
+      setFoodQuery("");
+      setAddOpen(true);
+      router.replace("/dashboard/meal-logs", { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const grouped = useMemo(() => {
     const byType = new Map<MealType, MealLog[]>();
@@ -163,7 +178,7 @@ export default function MealLogsPage() {
             Everything you&apos;ve eaten, day by day.
           </p>
         </div>
-        <Button className="rounded-full" onClick={() => openAdd("breakfast")}>
+        <Button className="rounded-full" onClick={() => openAdd(defaultMealType())}>
           <Plus className="h-4 w-4" /> Add food
         </Button>
       </div>
@@ -241,7 +256,7 @@ export default function MealLogsPage() {
           title={`Nothing logged ${isToday(date) ? "today" : "on this day"}`}
           description="Add a food manually or search the database to autofill nutrition."
           action={
-            <Button onClick={() => openAdd("breakfast")}>
+            <Button onClick={() => openAdd(defaultMealType())}>
               <Plus className="h-4 w-4" /> Add food
             </Button>
           }
@@ -463,5 +478,14 @@ export default function MealLogsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </PageTransition>
+  );
+}
+
+export default function MealLogsPage() {
+  // useSearchParams requires a Suspense boundary during prerender
+  return (
+    <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+      <MealLogsDiary />
+    </Suspense>
   );
 }

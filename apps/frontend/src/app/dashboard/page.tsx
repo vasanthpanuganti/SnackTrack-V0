@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { format } from "date-fns";
 import {
   ArrowRight,
@@ -11,15 +12,13 @@ import {
   Plus,
   Sparkles,
 } from "lucide-react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+
+// recharts is heavy; keep it out of the dashboard's First Load JS and let
+// the chart hydrate after the page is interactive.
+const WeeklyTrend = dynamic(() => import("@/components/charts/weekly-trend"), {
+  ssr: false,
+  loading: () => <div className="h-36 animate-pulse rounded-xl bg-muted" />,
+});
 
 import { useAuthStore } from "@/lib/store/auth-store";
 import { useUserProfile } from "@/lib/hooks/use-user";
@@ -108,7 +107,7 @@ export default function DashboardPage() {
           </h1>
         </div>
         <Button asChild className="rounded-full">
-          <Link href="/dashboard/meal-logs">
+          <Link href="/dashboard/meal-logs?add=1">
             <Plus className="h-4 w-4" /> Log a meal
           </Link>
         </Button>
@@ -157,39 +156,7 @@ export default function DashboardPage() {
             {trendData.length > 0 && (
               <div className="pt-2">
                 <p className="mb-2 text-sm font-medium">Last 7 days</p>
-                <div className="h-36">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trendData} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="calFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                      <XAxis dataKey="day" tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
-                      <YAxis tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" width={48} />
-                      <Tooltip
-                        cursor={{ stroke: "var(--border)" }}
-                        contentStyle={{
-                          background: "var(--popover)",
-                          border: "1px solid var(--border)",
-                          borderRadius: 12,
-                          fontSize: 12,
-                          color: "var(--popover-foreground)",
-                        }}
-                        formatter={(value: number) => [`${value} kcal`, "Calories"]}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="calories"
-                        stroke="var(--chart-1)"
-                        strokeWidth={2}
-                        fill="url(#calFill)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+                <WeeklyTrend data={trendData} />
               </div>
             )}
           </CardContent>
@@ -248,7 +215,7 @@ export default function DashboardPage() {
                 description="Log your first meal to see calories and macros build up here."
                 action={
                   <Button asChild size="sm">
-                    <Link href="/dashboard/meal-logs">
+                    <Link href="/dashboard/meal-logs?add=1">
                       <Plus className="h-4 w-4" /> Log a meal
                     </Link>
                   </Button>

@@ -158,7 +158,9 @@ async def get_hybrid_recommendations(
             continue
 
         for rec in recs:
-            rid = rec["recipe_id"]
+            # Normalize to str so the same recipe dedups even if one
+            # recommender yields UUID objects and another yields strings.
+            rid = str(rec["recipe_id"])
             if rid in combined:
                 combined[rid]["score"] += model_weight * rec["score"]
             else:
